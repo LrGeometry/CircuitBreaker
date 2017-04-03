@@ -30,7 +30,36 @@ class PointerType < Type
     :integer
   end
 
-  def coerce_to_argument(value)
+  def coerce_to_argument(switch, value, finalizer_list)
+    if @pointedType == Types::Char && value.is_a?(String) then
+      buf = Pointer.from_switch(switch, switch.command("malloc", {:length => value.length + 1})["address"])
+      buf.cast! Types::Char
+      buf.write(value)
+      buf[value.length] = 0
+      finalizer_list.push(proc do
+                            buf.free
+                          end)
+      return encode(buf)
+    end
+    if value.is_a? Array then
+      buf = Pointer.from_switch(switch,
+                                switch.command("malloc",
+                                               {:length => value.length * @pointedType.size})["address"])
+      buf.cast! @pointedType
+      value.each_with_index do |item, i|
+        buf[i] = item
+      end
+      finalizer_list.push(proc do
+                            value.length.times do |i|
+                              value[i] = buf[i]
+                            end
+                            buf.free
+                          end)
+      return encode(buf)
+    end
+    if value == nil then
+      return encode(Pointer.new(switch, 0))
+    end
     encode(value)
   end
 
@@ -139,5 +168,10 @@ class Pointer
 
   def is_null_ptr?
     @value == 0
+  end
+
+  def free
+    @switch.command("free", {:address => self.to_switch})
+    nil
   end
 end

@@ -62,7 +62,7 @@ A list of standard types included in the Circuit Breaker REPL follows:
   * `Types::Float64` (limited support)
   * `Types::Bool`
 
-Additional Switch-specific types and structures are defined in `standardSwitch.rb`.
+Additional Switch-specific types and structures are defined in `standard_switch.rb`.
 
   * `Types::Handle`
   * `Types::Result`
@@ -158,6 +158,15 @@ A shorthand for allocating a memory buffer the size of a single structure (or ot
 ```
 [1] pry(#<SwitchDSL>)> foo = new Types::MemInfo
 => struct MemInfo* = 0x3ae1a770a0
+```
+
+A buffer can also quickly be freed with `#free`. It behaves just like the `free` command.
+
+```
+[1] pry(#<SwitchDSL>)> foo = new Types::MemInfo
+=> struct MemInfo* = 0x3ae1a770a0
+[2] pry(#<SwitchDSL>)> foo.free
+=> nil
 ```
 
 Pointers can be indexed with `#[]` just like in C. You can even do pointer arithmetic with `#+`. Even though it makes no sense, `void` pointers may also be indexed. The `void` type behaves as if it had a size of `1`, just like a `char` or `uint8`.
@@ -271,7 +280,14 @@ The function may be invoked with `#call`.
 => 13
 ```
 
-Currently, strings will not automatically be converted to `char*`s.
+If a string is passed where a `char*` is expected, a temporary buffer will be allocated, the string will be written to it (with a null terminator), the function will be called, and the temporary buffer will be freed.
+
+```
+[1] pry(#<SwitchDSL>)> strlen.call("foobie bletch")
+=> 13
+```
+
+If an array is passed where a pointer is expected, a temporary buffer will be allocated, the contents of the array will be written to the buffer (each item will be coerced to the correct type), the function will be called, and the contents of the buffer will be written into the array.
 
 ### Structs
 
@@ -325,9 +341,9 @@ Pointers to individual fields within structs may also be retrieved with `#member
 => uint64* = 0x3ae19f4688
 ```
 
-### `standardSwitch.rb`
+### `standard_switch.rb`
 
-`standardSwitch.rb` is automatically loaded on startup and defines some useful function bridges, including a few SVCs. It also monkey-patches `Pointer` to include a `#query_memory` method, which will return a `MemInfo` struct describing the memory location the pointer was in. It is a small wrapper around `SVC::QueryMemory`.
+`standard_switch.rb` is automatically loaded on startup and defines some useful function bridges, including a few SVCs. It also monkey-patches `Pointer` to include a `#query_memory` method, which will return a `MemInfo` struct describing the memory location the pointer was in. It is a small wrapper around `SVC::QueryMemory`.
 
 # Development
 
@@ -350,11 +366,11 @@ functionpointer.rb - REPL code for function pointers
 nro.rb - REPL code for parsing NRO structures, mostly untested and largely useless
 pointer.rb - REPL for pointers
 repl.rb - REPL entry point
-standardSwitch.rb - REPL typedefs and function bridges for the Switch
+standard_switch.rb - REPL typedefs and function bridges for the Switch
 type.rb - REPL code for type system
 
-dumpFiles.rb - Module for dumping files from the Switch filesystem
-walkMemList.rb - Module for querying all memory pages on the Switch
+dump_files.rb - Module for dumping files from the Switch filesystem
+walk_mem_list.rb - Module for querying all memory pages on the Switch
 ```
 
 In order to update `public/bundle.js`, you will have to run WebPack in the `client/` directory. I recommend leaving a terminal open runninng `webpack --watch`.

@@ -120,7 +120,7 @@ class NumericType < Type
     string.unpack(@packing)[0]
   end
   
-  def coerce_to_argument(value)
+  def coerce_to_argument(switch, value, finalizers)
     [value].pack("Q<").unpack("L<L<")
   end
 
@@ -150,7 +150,7 @@ class BooleanType < Type
     string.unpack("C")[0] > 0
   end
 
-  def coerce_to_argument(value)
+  def coerce_to_argument(switch, value, finalizers)
     [value ? 1 : 0].pack("Q<").unpack("L<L<")
   end
 

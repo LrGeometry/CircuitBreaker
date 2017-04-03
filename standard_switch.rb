@@ -118,6 +118,9 @@ module SVC
 
   # no perms?
   UnmapMemoryBlock = svc[0x14].bridge(Types::Result, Types::Handle).set_names("memBlock")
+
+  # untested
+  ConnectToPort = svc[0x1F].bridge(Types::Result, Types::Handle.pointer, Types::Char.pointer).set_names("out, portName")
 end
 
 class Pointer

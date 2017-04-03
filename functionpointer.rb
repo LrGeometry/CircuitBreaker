@@ -28,9 +28,11 @@ class FunctionPointer
     if args.length != @argument_types.length then
       raise "argument length mismatch (expected #{@argument_types.length}, got #{args.length}"
     end
+
+    finalizers = []
     
     values = @argument_types.zip(args).map do |pair|
-      [pair[0], pair[0].coerce_to_argument(pair[1])]
+      [pair[0], pair[0].coerce_to_argument(@switch, pair[1], finalizers)]
     end.group_by do |pair|
       pair[0].argument_mode
     end
@@ -43,6 +45,10 @@ class FunctionPointer
                              :intArgs => int_values,
                              :registers => [],
                              :floatArgs => float_values})["returnValue"]
+
+    finalizers.each do |f|
+      f.call
+    end
     
     return @return_type.coerce_from_return(@switch, retV)
   end

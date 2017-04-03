@@ -103,8 +103,7 @@ class SwitchDSL
   end
   
   def free(pointer)
-    @switch.command("free", {:address => pointer.to_switch})
-    nil
+    pointer.free
   end
 end
 
