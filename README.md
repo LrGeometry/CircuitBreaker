@@ -204,7 +204,7 @@ Returns the stack pointer from PegaSwitch as a `void*`.
 
 #### `tls`
 
-Returns a pointer to TLS functions as a `void*` (I think, not sure. Lifted from PegaSwitch).
+Returns a pointer to thread local storage as a `void*`.
 
 #### `mref <offset>`
 
