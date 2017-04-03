@@ -1,5 +1,6 @@
 module Types
   Handle = Types::Uint64.typedef("Handle")
+  SessionHandle = Types::Handle.typedef("SessionHandle")
   Result = Types::Int64.typedef("Result")
   File = Types::Void.typedef("FILE")
   DirInfo = Types::Void.typedef("DirInfo")
@@ -120,7 +121,13 @@ module SVC
   UnmapMemoryBlock = svc[0x14].bridge(Types::Result, Types::Handle).set_names("memBlock")
 
   # untested
-  ConnectToPort = svc[0x1F].bridge(Types::Result, Types::Handle.pointer, Types::Char.pointer).set_names("out, portName")
+  ConnectToPort = svc[0x1F].bridge(Types::Result, Types::SessionHandle.pointer, Types::Char.pointer).set_names("out", "portName")
+
+  # untested
+  SendSyncRequest = svc[0x21].bridge(Types::Result, Types::SessionHandle).set_names("session")
+
+  # untested
+  SendSyncRequestEx = svc[0x22].bridge(Types::Result, Types::Void.pointer, Types::Uint64, Types::SessionHandle).set_names("addr", "size", "session")
 end
 
 class Pointer
