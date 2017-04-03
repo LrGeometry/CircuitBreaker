@@ -169,7 +169,7 @@ Thread.new do
   Pry.config.hooks.delete_hook(:before_session, :default)
   
   begin
-    bind.eval(File.read("standardSwitch.rb"), "standardSwitch.rb")
+    bind.eval(File.read("standard_switch.rb"), "standard_switch.rb")
     bind.pry
   rescue => e
     puts e

@@ -1,5 +1,5 @@
-@memInfo = new Types::MemInfo
-@pageInfo = new Types::PageInfo
+@memInfo||= new Types::MemInfo
+@pageInfo||= new Types::PageInfo
 
 def walk(ptr)
   SVC::QueryMemory.call(@memInfo, @pageInfo, ptr)
