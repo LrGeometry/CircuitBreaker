@@ -1,6 +1,6 @@
 # Circuit Breaker
 
-This is Circuit Breaker, a Nintendo Switch hacking toolkit. It is heavily based upon [the PegaSwitch toolkit](https://pegaswitch.com/) and the ReSwitched team deserves an incredible amount of credit for developing the exploit and reverse engineering userspace functions. 
+This is Circuit Breaker, a Nintendo Switch hacking toolkit. It is heavily based upon [the PegaSwitch toolkit](https://pegaswitch.com/) and the ReSwitched team deserves a huge amount of credit for their work, without which this project would be impossible.
 
 # Usage
 
