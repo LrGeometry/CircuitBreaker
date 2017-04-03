@@ -77,10 +77,10 @@ module SVC
     0x52 => $dsl.mref(0x3BC000)
   }
 
-  # untested
+  # can only be invoked once according to PegaSwitch guys, and it's already been blown by the time our code runs
   CreateMemoryHeap = svc[0x01].bridge(Types::Result, Types::Handle.pointer, Types::Uint64).set_names("handle", "size")
 
-  # untested
+  # can change RW -> R
   SetMemoryPermission = svc[0x02].bridge(Types::Result, Types::Void.pointer, Types::Uint64, Types::Uint64).set_names("???", "size", "permission")
 
   # untested
@@ -110,13 +110,13 @@ module SVC
   # working
   GetCurrentCoreNumber = svc[0x10].bridge(Types::Int32)
 
-  # untested
+  # broken - no perms?
   CreateMemoryBlock = svc[0x50].bridge(Types::Result, Types::Handle.pointer, Types::Uint64, Types::Uint64, Types::Uint64).set_names("memBlock", "size", "myPerm", "otherPerm")
 
-  # untested
+  # no perms?
   MapMemoryBlock = svc[0x13].bridge(Types::Result, Types::Handle, Types::Uint64, Types::Uint64, Types::Uint64).set_names("memBlock", "addr", "size", "perm")
 
-  # untested
+  # no perms?
   UnmapMemoryBlock = svc[0x14].bridge(Types::Result, Types::Handle).set_names("memBlock")
 end
 
