@@ -105,7 +105,7 @@ class Pointer
   end
 
   def arrow(memberName)
-    memberPtr(memberName).deref
+    member_ptr(memberName).deref
   end
 
   def deref
