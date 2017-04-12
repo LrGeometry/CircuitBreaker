@@ -85,8 +85,8 @@ class Pointer
     [@value + offset].pack("Q<").unpack("L<L<")
   end
 
-  def read(length, offset=0)
-     @switch.command("read", {:address => to_switch(offset), :length => length})
+  def read(length, offset=0, &block)
+    @switch.command("read", {:address => to_switch(offset), :length => length}, &block)
   end
 
   def write(data, offset=0)

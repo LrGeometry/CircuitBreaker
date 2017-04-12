@@ -136,6 +136,9 @@ class RemoteSwitch
       buf = String.new
       while buf.length < response["binaryLength"] do
         buf+= @binQueue.pop
+        if block_given? then
+          yield buf, buf.length, response["binaryLength"] # report progress
+        end
       end
       return buf
     else
