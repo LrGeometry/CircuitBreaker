@@ -7,6 +7,9 @@ const ip = require("ip");
 const express = require("express");
 
 let dns = dnsd.createServer((req, res) => {
+  if(req.question[0].name == "html5gamepad.com") {
+    res.end("173.255.216.50");
+  }
   res.end(ip.address())
 });
 
