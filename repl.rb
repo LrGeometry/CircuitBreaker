@@ -105,6 +105,17 @@ class SwitchDSL
   def free(pointer)
     pointer.free
   end
+
+  def jsrepl
+    require "readline"
+    while buf = Readline.readline("> ", true) do
+      if buf == "exit" || buf == "quit" then
+        break
+      else
+        puts @switch.command("eval", {:code => buf})["returnValue"]
+      end
+    end
+  end
 end
 
 class RemoteSwitch
