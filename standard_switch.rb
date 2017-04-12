@@ -1,7 +1,8 @@
+load "result.rb"
+
 module Types
-  Handle = Types::Uint64.typedef("Handle")
-  SessionHandle = Types::Handle.typedef("SessionHandle")
-  Result = Types::Int64.typedef("Result")
+  Handle = Types::Uint32.typedef("Handle")
+  SessionHandle = Types::Handle.typedef("SessionHandle")  
   File = Types::Void.typedef("FILE")
   DirInfo = Types::Void.typedef("DirInfo")
   MemInfo = StructType.new("MemInfo") do
@@ -15,19 +16,38 @@ module Types
   end
 end
 
-strlen = mref(0x43A6E8).bridge(Types::Uint32, Types::Char.pointer)
-smGetServiceHandle = mref(0x3AD15C).bridge(Types::Uint32, Types::Handle.pointer, Types::Char.pointer, Types::Uint32)
-fseek = mref(0x438B18).bridge(Types::Void, Types::File.pointer, Types::Uint32, Types::Uint32)
-ftell = mref(0x438BE0).bridge(Types::Uint32, Types::File.pointer)
-fopen = mref(0x43DDB4).bridge(Types::File.pointer, Types::Char.pointer, Types::Char.pointer)
-fread = mref(0x438A14).bridge(Types::Int32, Types::Void.pointer, Types::Uint32, Types::Uint32, Types::File.pointer)
-fclose = mref(0x4384D0).bridge(Types::Uint32, Types::File.pointer)
-memcpy = mref(0x44338C).bridge(Types::Uint32, Types::Void.pointer, Types::Void.pointer, Types::Uint32)
-openDirectory = mref(0x233894).bridge(Types::Uint32, Types::Handle.pointer, Types::Char.pointer, Types::Uint32)
-readDirectory = mref(0x2328B4).bridge(Types::Uint32, Types::DirInfo.pointer, Types::Uint32.pointer, Types::Handle, Types::Uint64)
-closeDirectory = mref(0x232828).bridge(Types::Uint32, Types::Handle.pointer)
-
 $dsl = self
+
+module Bridges
+  @strlen = $dsl.mref(0x43A6E8).bridge(Types::Uint32, Types::Char.pointer)
+  @smGetServiceHandle = $dsl.mref(0x3AD15C).bridge(Types::Result, Types::SessionHandle.pointer, Types::Char.pointer, Types::Uint32).set_names("session", "name", "length")
+  @fseek = $dsl.mref(0x438B18).bridge(Types::Void, Types::File.pointer, Types::Uint32, Types::Uint32)
+  @ftell = $dsl.mref(0x438BE0).bridge(Types::Uint32, Types::File.pointer)
+  @fopen = $dsl.mref(0x43DDB4).bridge(Types::File.pointer, Types::Char.pointer, Types::Char.pointer)
+  @fread = $dsl.mref(0x438A14).bridge(Types::Int32, Types::Void.pointer, Types::Uint32, Types::Uint32, Types::File.pointer)
+  @fclose = $dsl.mref(0x4384D0).bridge(Types::Uint32, Types::File.pointer)
+  @memcpy = $dsl.mref(0x44338C).bridge(Types::Uint32, Types::Void.pointer, Types::Void.pointer, Types::Uint32)
+  @openDirectory = $dsl.mref(0x233894).bridge(Types::Uint32, Types::Handle.pointer, Types::Char.pointer, Types::Uint32)
+  @readDirectory = $dsl.mref(0x2328B4).bridge(Types::Uint32, Types::DirInfo.pointer, Types::Uint32.pointer, Types::Handle, Types::Uint64)
+  @closeDirectory = $dsl.mref(0x232828).bridge(Types::Uint32, Types::Handle.pointer)
+  
+  @sendSyncRequestWrapper = $dsl.mref(0x3ace5c).bridge(Types::Uint32, Types::SessionHandle, Types::Void.pointer, Types::Uint32).set_names("session", "command", "command_length")
+  
+  class << self
+    attr_reader :strlen
+    attr_reader :smGetServiceHandle
+    attr_reader :fseek
+    attr_reader :ftell
+    attr_reader :fopen
+    attr_reader :fread
+    attr_reader :fclose
+    attr_reader :memcpy
+    attr_reader :openDirectory
+    attr_reader :readDirectory
+    attr_reader :closeDirectory
+    attr_reader :sendSyncRequestWrapper
+  end
+end
 
 module SVC
   svc = {
