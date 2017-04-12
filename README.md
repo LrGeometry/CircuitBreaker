@@ -65,7 +65,7 @@ A list of standard types included in the Circuit Breaker REPL follows:
 Additional Switch-specific types and structures are defined in `standard_switch.rb`.
 
   * `Types::Handle`
-  * `Types::Result`
+  * `Types::Result` (result.rb)
   * `Types::File`
   * `Types::DirInfo`
   * `Types::MemInfo`
@@ -251,6 +251,10 @@ Returns the null pointer.
 
 Allocates a buffer big enough to hold the given string (plus null terminator), stores it, and returns the buffer.
 
+#### `jsrepl`
+
+Starts a REPL for running JavaScript on the switch. Use `exit` or `quit` to go back to the Circuit Breaker REPL.
+
 ### Function Pointers/Bridges
 
 A pointer can be converted to a function pointer by calling the `#bridge` method on it. The first parameter is the return type and all other parameters are parameter types. Varargs are not supported.
@@ -291,7 +295,7 @@ If an array is passed where a pointer is expected, a temporary buffer will be al
 
 ### Structs
 
-A struct type may be created via `StructType.new`.
+A struct type can be created via `StructType.new`.
 
 ```
 MemInfo = StructType.new("MemInfo") do
@@ -363,14 +367,19 @@ public/index.html - HTML page
 public/minmain.js - Initial exploit
 
 functionpointer.rb - REPL code for function pointers
-nro.rb - REPL code for parsing NRO structures, mostly untested and largely useless
 pointer.rb - REPL for pointers
 repl.rb - REPL entry point
 standard_switch.rb - REPL typedefs and function bridges for the Switch
 type.rb - REPL code for type system
+result.rb - REPL code for the Result enum
 
 dump_files.rb - Module for dumping files from the Switch filesystem
 walk_mem_list.rb - Module for querying all memory pages on the Switch
+dump_memory.rb - Module for dumping all of the Switch's memory
+radare.rb - Module for exporting data to radare2
+ipc_switch.rb - Module providing IPC bindings. Probably broken.
+
+NOTES.txt - Notes, mostly for myself. You might find something useful, though.
 ```
 
 In order to update `public/bundle.js`, you will have to run WebPack in the `client/` directory. I recommend leaving a terminal open runninng `webpack --watch`.

@@ -1,0 +1,55 @@
+If you find a function in radare2, you can create a bridge by taking the physical address (?p in radare2), subtracting 0x6000, and adding it to standard_switch.rb using mref.
+
+ReSwitched #general (April 2, 2017, 12:41 PM) ===============
+<pushret> than you can take that function name and its offset in IDA from the reconstructed ELF of the mod0 dump (use nxtool), you then substract 0x6000 to it and you have the relative memory address and you can add that to pegaswitch's list of function bridges. It's left as an exercise to the reader to recover the functions' prototypes and arguments.
+<pushret> "then" not "than" ^
+<pushret> finally you can call them easily from pegaswitch's shell and all sorts of funny arguments.
+<Dazzozo> .."0x6000".. sounds like you're not splitting up the NSO dumps properly
+<pushret> huh, that's possible, what would be the proper way?  I just look for RX pages, then take the following R and RW ones and each time:  cat"RX.bin" "R.bin" "RW.bin" > test.bin
+<pushret> before running feeding it to nxtool.
+<pushret> (tired, words all over the place, sorry)
+<Dazzozo> that should work fine if its memory regions dumped via QueryMemory
+<Dazzozo> the only thing i have to subtract is the module base address
+<Daeken> i have the 0x6000 thing too
+<Dazzozo> ...
+<Dazzozo> waat
+<Dazzozo> ohh
+<Dazzozo> wait
+<Daeken> i think it's just because of the actual file structure now
+<Daeken> ida's offset is relative to the actual physical file
+<Daeken> it has elf headers and all that, adding a 0x6000 start region
+<Dazzozo> ida's offsets should be vaddr-based though
+<Dazzozo> not file-based
+
+ReSwitched #general (April 2, 2017, 12:50 PM) ===============
+<Dazzozo> yeah, i think there is a fixed 0x6000 offset in the file bc of nxtool
+<Dazzozo> i got confused for a sec bc 0x6000 is the size of rtld, and they are contiguous
+
+
+
+
+AArch64 Calling Conventions (http://infocenter.arm.com/help/topic/com.arm.doc.ihi0055b/IHI0055B_aapcs64.pdf)
+
+Registers
+=========
+SP  = Stack pointer
+r30 = Link register
+r29 = Frame pointer
+r19 ... r28 = Callee-saved registers
+r0 ... r7 = Parameter/result registers
+
+The Frame Record
+================
+u64 prev_frame_record_ptr;
+u64 link_register_content;
+
+The BL instruction
+==================
+Loads next instruction address into LR and jumps. It is up to the function that we jumped to to create a frame record.
+
+
+
+/===Interesting Stuff From Discord===\
+ReSwitched #general (April 1, 2017, 8:29 PM) ===============
+<pushret> webkit+0x1A4B10  NvOsDrvIoctl(int dev_handle, int ioctl, uint8* buf, int buflen) is that correct?
+<pushret> those handles are probably the same after reboots considering how unrandom they look: 0x580002/0x580003/0x580004. One less hurdle :smiley:
