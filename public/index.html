@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0"/>
     <script src="minmain.js"></script>
     <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet"> 
     <style>
@@ -21,29 +22,47 @@
       padding: 10px;
       border-radius: 3px;
       border-bottom: 1px solid #00000055;
+      border-top: 1px solid #DDCCAA;
       background-color: #DDCCAA;
       position: absolute;
       left: 50%;
       transform: translate(-50%, 0);
       font-weight: bold;
+      cursor: pointer;
+      }
+
+      .button:hover {
+      border-top: 1px solid #00000055;
+      border-bottom: 1px solid #AA9977;
+      background-color: #AA9977;
+      }
+
+      .button:active {
+      border-top: 1px solid #00000055;
+      border-bottom: 1px solid #AA9977;
+      background-color: #998866;
       }
 
       #test {
       display: none;
       }
 
+      #main-container {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      }
+      
       #logregion {
       background-color: #DEDEDE;
       width: 600px;
       height: 400px;
-      overflow-y: scroll;
       padding: 10px;
       line-height: 1.5;
-      position: absolute;
-      left: 50%;
-      transform: translateX(-50%);
+      overflow-y: scroll;
       border-radius: 5px;
-      }
+      }      
     </style>
   </head>
   <body>
@@ -60,7 +79,9 @@
     <button onclick="window.minmain();" id="test">Test</button>
 
     <div>
-      <pre id="logregion"></pre>
+      <div id="main-container">
+        <pre id="logregion">Attempting exploit..</pre>
+      </div>
     </div>
   </body>
 </html>

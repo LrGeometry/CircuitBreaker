@@ -1,4 +1,4 @@
-let logBox = null;
+export let logBox = null;
 
 export let loaded = () => {
   logBox = document.getElementById("logregion");

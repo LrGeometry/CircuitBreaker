@@ -15,61 +15,96 @@ import handlerGen from "./handlers.js";
   }
   
   let prims = new ExploitPrimitives(window.exploitMe);
-  
-  utils.log("Attempting to connect to " + wsPath);
-  let ws = new WebSocket(wsPath);
-  let handlers = handlerGen(prims);
-  
-  window.socket = ws;
-  
-  ws.onmessage = (event) => {
-    let data = JSON.parse(event.data);
+  let attemptConnection = () => {
+    utils.log("Attempting to connect to " + wsPath);
+    let ws = new WebSocket(wsPath);
+    let handlers = handlerGen(prims);
+    let madeConnection = false;
 
-    let jsonResponse = (response) => {
-      ws.send(JSON.stringify({
-        command: "return",
-        jobTag: data.jobTag,
-        jobCommand: data.command,
-        binaryPayload: false,
-        response
-      }));
+    let streamBeginPromise = Promise.resolve(null);
+    
+    window.socket = ws;  
+    ws.onmessage = (event) => {
+      let data = JSON.parse(event.data);
+
+      let jsonResponse = (response) => {
+        ws.send(JSON.stringify({
+          command: "return",
+          jobTag: data.jobTag,
+          jobCommand: data.command,
+          binaryPayload: false,
+          response
+        }));
+      };
+
+      let binaryStream = (length) => {
+        // wait for any previous streams to finish. concurrent streams are not allowed.
+        return streamBeginPromise = streamBeginPromise.then(() => {
+          ws.send(JSON.stringify({
+            command: "return",
+            jobTag: data.jobTag,
+            jobCommand: data.command,
+            binaryPayload: true,
+            streamingPayload: true,
+            binaryLength: length
+          }));
+          
+          return (chunk) => {
+            ws.send(chunk);
+          };
+        });
+      };
+
+      try {
+        handlers[data.command](data, jsonResponse, binaryStream);
+      } catch(e) {
+        utils.log(e);
+        utils.log(e.stack);
+        ws.send(JSON.stringify({
+          command: "return",
+          jobTag: data.jobTag,
+          jobCommand: data.command,
+          error: e
+        }));
+      }
     };
-
-    let binaryResponse = (response) => {
-      let chunkSize = 10000;
-      
-      ws.send(JSON.stringify({
-        command: "return",
-        jobTag: data.jobTag,
-        jobCommand: data.command,
-        binaryPayload: true,
-        binaryLength: response.byteLength
-      }));
-
-      for(let i = 0; i < response.byteLength; i+= chunkSize) {
-        ws.send(response.slice(i, i + chunkSize)); // slice clamps indices
+    
+    ws.onopen = () => {
+      madeConnection = true;
+      utils.log("Connected to server.");
+    };
+    
+    ws.onerror = (e) => {
+      utils.log("Could not open websocket: " + JSON.stringify(e));
+      if(madeConnection) {
+        location.reload();
+      } else {
+        window.setTimeout(attemptConnection, 1000);
       }
     };
 
-    try {
-      handlers[data.command](data, jsonResponse, binaryResponse);
-    } catch(e) {
-      utils.log(e);
-      utils.log(e.stack);
-      ws.send(JSON.stringify({
-        command: "return",
-        jobTag: data.jobTag,
-        jobCommand: data.command,
-        error: e
-      }));
+    ws.onclose = (e) => {
+      utils.log("Websocket closed.");
+      if(madeConnection) {
+        location.reload();
+      }
+    };
+  };
+  
+  attemptConnection();
+
+  let last = performance.now();
+  let scrollHandler = (t) => {
+    let delta = t-last;
+    last = t;
+
+    if(navigator.getGamepads().length > 0){
+      let joy = navigator.getGamepads()[0].axes[3];
+      
+      utils.logBox.scrollTop+= delta * joy * 1;
     }
+    
+    window.requestAnimationFrame(scrollHandler);
   };
-  
-  ws.onopen = () => {
-    utils.log("Connected to server.");
-  };
-  
-  ws.onerror = (e) => {
-    utils.log("Could not open websocket: " + JSON.stringify(e));
-  };
+  window.requestAnimationFrame(scrollHandler);
 })();

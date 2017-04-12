@@ -8202,63 +8202,94 @@
 	  }
 	
 	  var prims = new _primitives2.default(window.exploitMe);
+	  var attemptConnection = function attemptConnection() {
+	    utils.log("Attempting to connect to " + wsPath);
+	    var ws = new WebSocket(wsPath);
+	    var handlers = (0, _handlers2.default)(prims);
+	    var madeConnection = false;
 	
-	  utils.log("Attempting to connect to " + wsPath);
-	  var ws = new WebSocket(wsPath);
-	  var handlers = (0, _handlers2.default)(prims);
+	    window.socket = ws;
+	    ws.onmessage = function (event) {
+	      var data = JSON.parse(event.data);
 	
-	  window.socket = ws;
+	      var jsonResponse = function jsonResponse(response) {
+	        ws.send(JSON.stringify({
+	          command: "return",
+	          jobTag: data.jobTag,
+	          jobCommand: data.command,
+	          binaryPayload: false,
+	          response: response
+	        }));
+	      };
 	
-	  ws.onmessage = function (event) {
-	    var data = JSON.parse(event.data);
+	      var binaryResponse = function binaryResponse(response) {
+	        var chunkSize = 10000;
 	
-	    var jsonResponse = function jsonResponse(response) {
-	      ws.send(JSON.stringify({
-	        command: "return",
-	        jobTag: data.jobTag,
-	        jobCommand: data.command,
-	        binaryPayload: false,
-	        response: response
-	      }));
-	    };
+	        ws.send(JSON.stringify({
+	          command: "return",
+	          jobTag: data.jobTag,
+	          jobCommand: data.command,
+	          binaryPayload: true,
+	          binaryLength: response.byteLength
+	        }));
 	
-	    var binaryResponse = function binaryResponse(response) {
-	      var chunkSize = 10000;
+	        for (var i = 0; i < response.byteLength; i += chunkSize) {
+	          ws.send(response.slice(i, i + chunkSize)); // slice clamps indices
+	        }
+	      };
 	
-	      ws.send(JSON.stringify({
-	        command: "return",
-	        jobTag: data.jobTag,
-	        jobCommand: data.command,
-	        binaryPayload: true,
-	        binaryLength: response.byteLength
-	      }));
-	
-	      for (var i = 0; i < response.byteLength; i += chunkSize) {
-	        ws.send(response.slice(i, i + chunkSize)); // slice clamps indices
+	      try {
+	        handlers[data.command](data, jsonResponse, binaryResponse);
+	      } catch (e) {
+	        utils.log(e);
+	        utils.log(e.stack);
+	        ws.send(JSON.stringify({
+	          command: "return",
+	          jobTag: data.jobTag,
+	          jobCommand: data.command,
+	          error: e
+	        }));
 	      }
 	    };
 	
-	    try {
-	      handlers[data.command](data, jsonResponse, binaryResponse);
-	    } catch (e) {
-	      utils.log(e);
-	      utils.log(e.stack);
-	      ws.send(JSON.stringify({
-	        command: "return",
-	        jobTag: data.jobTag,
-	        jobCommand: data.command,
-	        error: e
-	      }));
+	    ws.onopen = function () {
+	      madeConnection = true;
+	      utils.log("Connected to server.");
+	    };
+	
+	    ws.onerror = function (e) {
+	      utils.log("Could not open websocket: " + JSON.stringify(e));
+	      if (madeConnection) {
+	        location.reload();
+	      } else {
+	        window.setTimeout(attemptConnection, 1000);
+	      }
+	    };
+	
+	    ws.onclose = function (e) {
+	      utils.log("Websocket closed.");
+	      if (madeConnection) {
+	        location.reload();
+	      }
+	    };
+	  };
+	
+	  attemptConnection();
+	
+	  var last = performance.now();
+	  var scrollHandler = function scrollHandler(t) {
+	    var delta = t - last;
+	    last = t;
+	
+	    if (navigator.getGamepads().length > 0) {
+	      var joy = navigator.getGamepads()[0].axes[3];
+	
+	      utils.logBox.scrollTop += delta * joy * 1;
 	    }
-	  };
 	
-	  ws.onopen = function () {
-	    utils.log("Connected to server.");
+	    window.requestAnimationFrame(scrollHandler);
 	  };
-	
-	  ws.onerror = function (e) {
-	    utils.log("Could not open websocket: " + JSON.stringify(e));
-	  };
+	  window.requestAnimationFrame(scrollHandler);
 	})();
 
 /***/ },
@@ -8273,10 +8304,10 @@
 	
 	var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
 	
-	var logBox = null;
+	var logBox = exports.logBox = null;
 	
 	var loaded = exports.loaded = function loaded() {
-	  logBox = document.getElementById("logregion");
+	  exports.logBox = logBox = document.getElementById("logregion");
 	};
 	
 	var log = exports.log = function log(msg) {
@@ -9046,6 +9077,11 @@
 	    invokeBridge: function invokeBridge(data, json, bin) {
 	      return json({
 	        returnValue: prims.call(data.funcPtr, data.intArgs, data.floatArgs)
+	      });
+	    },
+	    eval: function _eval(data, json, bin) {
+	      return json({
+	        returnValue: eval.call(window, data.code).toString()
 	      });
 	    }
 	  };
