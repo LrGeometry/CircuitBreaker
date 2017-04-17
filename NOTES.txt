@@ -1,3 +1,9 @@
+radare2 macros
+"(to_mref a,?p a-0x6000)"
+"(from_mref a,?P a+0x6000)"
+
+
+
 If you find a function in radare2, you can create a bridge by taking the physical address (?p in radare2), subtracting 0x6000, and adding it to standard_switch.rb using mref.
 
 ReSwitched #general (April 2, 2017, 12:41 PM) ===============
