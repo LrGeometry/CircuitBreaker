@@ -1,10 +1,25 @@
 class ResultCode
   def initialize(number, description)
     @number = number
+    @mod_no = number & 0x1FF
+    @num_desc = number >> 9
     @description = description
   end
 
   @@cache = {}
+  @@known_mods = {
+    1 => "Kernel",
+    2 => "FS",
+    9 => "RO service",
+    10 => "IPC",
+    11 => "IPC",
+    16 => "NS",
+    21 => "SM",
+    22 => "RO user",
+    124 => "Account",
+    126 => "Mii",
+    203 => "HID"
+  }
   
   def self.get(id)
     if @@cache[id] then
@@ -26,8 +41,12 @@ class ResultCode
     @number
   end
 
+  def mod_name
+    @@known_mods[@mod_no] || "unknown"
+  end
+  
   def to_s
-    return "0x" + number.to_s(16) + " (" + (@description ? @description.to_s : "unknown") + ")"
+    return "0x" + number.to_s(16) + " (" + (@description ? @description.to_s : "unknown") + " mod #{mod_name})"
   end
   
   def inspect
@@ -35,25 +54,44 @@ class ResultCode
   end
 end
 
-ResultCode.known(0x0000, "OK")
-ResultCode.known(0x1015, "no such service/access denied")
-ResultCode.known(0xCA01, "Invalid size (not page-aligned")
-ResultCode.known(0xCC01, "Invalid address (not page-aligned)")
-ResultCode.known(0xD201, "Handle-table full.")
-ResultCode.known(0xD401, "Invalid memory state.")
-ResultCode.known(0xD801, "Can't set executable permission.")
-ResultCode.known(0xE401, "Invalid handle.")
-ResultCode.known(0xE601, "Syscall copy from user failed.")
-ResultCode.known(0xEA01, "Time out? When you give 0 handles to svcWaitSynchronizationN.")
-ResultCode.known(0xEE01, "When you give too many handles to svcWaitSynchronizationN.")
-ResultCode.known(0xFA01, "Wrong memory permission?")
-ResultCode.known(0x10601, "Port max sessions exceeded.")
-ResultCode.known(0x7D402, "Title-id not found")
-ResultCode.known(0x0C15, "Invalid name (all zeroes")
-ResultCode.known(0x1015, "Permission denied")
+{
+  0x0000 => "OK",
+  0x1015 => "no such service/access denied",
+  0xCA01 => "Invalid size (not page-aligned)",
+  0xCC01 => "Invalid address (not page-aligned)",
+  0xD201 => "Handle-table full.",
+  0xD401 => "Invalid memory state.",
+  0xD801 => "Can't set executable permission.",
+  0xDC01 => "Stack address outside allowed range.",
+  0xE001 => "Invalid thread priority.",
+  0xE201 => "Invalid processor ID.",
+  0xE401 => "Invalid handle.",
+  0xE601 => "Syscall copy from user failed.",
+  0xEA01 => "Time out? When you give 0 handles to svcWaitSynchronizationN.",
+  0xEE01 => "When you give too many handles to svcWaitSynchronizationN.",
+  0xFA01 => "Wrong memory permission?",
+  0xF201 => "No such port",
+  0x10601 => "Port max sessions exceeded.",
+  0x10801 => "Out of memory",
+  0x7D402 => "Title-id not found",
+  0x2EE602 => "Path too long",
+  0x6609 => "Invalid memory state/permission",
+  0x6A09 => "Invalid Nrr",
+  0xA209 => "Unaligned Nrr address",
+  0xA409 => "Bad Nrr size",
+  0xAA09 => "Bad Nrr address",
+  0x1A80A => "Bad magic (expected 'SFCO')",
+  0x20B => "Size too big to fit to marshal",
+  0x11A0B => "Went past maximum during marhsalling.",
+  0x0C15 => "Invalid name (all zeroes)",
+  0x816 => "Bad Nro magic",
+  0xC16 => "Bad Nrr magic"
+}.each_pair do |k, v|
+  ResultCode.known(k, v)
+end
 
 module Types
-  Result = NumericType.new("Result", "l<", 4)
+  Result = NumericType.new("Result", "L<", 4)
   class << Result
     def encode(value)
       if value.is_a? ResultCode then
