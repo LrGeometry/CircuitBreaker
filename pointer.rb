@@ -75,6 +75,7 @@ class Pointer
     @targetType = targetType
   end
 
+  attr_accessor :switch
   attr_accessor :value
   
   def self.from_switch(switch, arr)
@@ -94,6 +95,10 @@ class Pointer
     nil
   end
 
+  def io
+    return PointerIO.new(self)
+  end
+  
   def cast(targetType)
     return Pointer.new(@switch, @value, targetType)
   end
@@ -174,4 +179,26 @@ class Pointer
     @switch.command("free", {:address => self.to_switch})
     nil
   end
+end
+
+class PointerIO
+  def initialize(pointer)
+    @pos = pointer.value
+    @switch = pointer.switch
+    @mut_ptr = Pointer.new(@switch, 0)
+  end
+  
+  def read(num)
+    @mut_ptr.value = @pos
+    @pos+= num
+    return @mut_ptr.read(num)
+  end
+
+  def write(str)
+    @mut_ptr.value = @pos
+    @pos+= str.length
+    return @mut_ptr.write(str)
+  end
+
+  attr_accessor :pos
 end
