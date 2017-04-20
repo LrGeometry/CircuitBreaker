@@ -8208,6 +8208,8 @@
 	    var handlers = (0, _handlers2.default)(prims);
 	    var madeConnection = false;
 	
+	    var streamBeginPromise = Promise.resolve(null);
+	
 	    window.socket = ws;
 	    ws.onmessage = function (event) {
 	      var data = JSON.parse(event.data);
@@ -8222,24 +8224,26 @@
 	        }));
 	      };
 	
-	      var binaryResponse = function binaryResponse(response) {
-	        var chunkSize = 10000;
+	      var binaryStream = function binaryStream(length) {
+	        // wait for any previous streams to finish. concurrent streams are not allowed.
+	        return streamBeginPromise = streamBeginPromise.then(function () {
+	          ws.send(JSON.stringify({
+	            command: "return",
+	            jobTag: data.jobTag,
+	            jobCommand: data.command,
+	            binaryPayload: true,
+	            streamingPayload: true,
+	            binaryLength: length
+	          }));
 	
-	        ws.send(JSON.stringify({
-	          command: "return",
-	          jobTag: data.jobTag,
-	          jobCommand: data.command,
-	          binaryPayload: true,
-	          binaryLength: response.byteLength
-	        }));
-	
-	        for (var i = 0; i < response.byteLength; i += chunkSize) {
-	          ws.send(response.slice(i, i + chunkSize)); // slice clamps indices
-	        }
+	          return function (chunk) {
+	            ws.send(chunk);
+	          };
+	        });
 	      };
 	
 	      try {
-	        handlers[data.command](data, jsonResponse, binaryResponse);
+	        handlers[data.command](data, jsonResponse, binaryStream);
 	      } catch (e) {
 	        utils.log(e);
 	        utils.log(e.stack);
@@ -9025,6 +9029,9 @@
 	
 	function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 	
+	var chunkSize = 1024 * 16;
+	var targetBuffer = new Uint8Array(chunkSize);
+	
 	exports.default = function (prims) {
 	  return {
 	    malloc: function malloc(data, json, bin) {
@@ -9041,9 +9048,25 @@
 	      });
 	    },
 	    read: function read(data, json, bin) {
-	      var target = new Uint8Array(data.length);
-	      prims.read(data.address, target);
-	      return bin(target);
+	      bin(data.length).then(function (stream) {
+	        var addr = data.address;
+	        var bytes = 0;
+	        while (bytes < data.length) {
+	          var toRead = Math.min(chunkSize, data.length - bytes);
+	          prims.mempeek(addr, toRead, function (ab) {
+	            stream(ab);
+	          });
+	          /*
+	          prims.read(addr, targetBuffer);
+	          stream(toRead == chunkSize ? targetBuffer : targetBuffer.slice(0, toRead));
+	          utils.log("streamed.");*/
+	          addr = utils.add64(addr, toRead);
+	          bytes += toRead;
+	        }
+	      });
+	      //let target = new Uint8Array(data.length);
+	      //prims.read(data.address, target);
+	      //return bin(target);
 	    },
 	    write: function write(data, json, bin) {
 	      var buffer = new Uint8Array(atob(data.payload).split("").map(function (c) {
@@ -9082,6 +9105,11 @@
 	    eval: function _eval(data, json, bin) {
 	      return json({
 	        returnValue: eval.call(window, data.code).toString()
+	      });
+	    },
+	    ping: function ping(data, json, bin) {
+	      return json({
+	        originTime: json.time
 	      });
 	    }
 	  };

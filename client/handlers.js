@@ -1,5 +1,8 @@
 import * as utils from "./utils.js";
 
+let chunkSize = 1024 * 16;
+let targetBuffer = new Uint8Array(chunkSize);
+
 export default (prims) => {
   return {
     malloc: (data, json, bin) => {
@@ -16,15 +19,18 @@ export default (prims) => {
       });
     },
     read: (data, json, bin) => {
-      let chunkSize = 1024 * 16;
       bin(data.length).then((stream) => {
-        let target = new Uint8Array(chunkSize);
         let addr = data.address;
         let bytes = 0;
         while(bytes < data.length) {
           let toRead = Math.min(chunkSize, data.length-bytes);
-          prims.read(addr, target);
-          stream(target.slice(0, toRead));
+          prims.mempeek(addr, toRead, (ab) => {
+            stream(ab);
+          });
+          /*
+          prims.read(addr, targetBuffer);
+          stream(toRead == chunkSize ? targetBuffer : targetBuffer.slice(0, toRead));
+          utils.log("streamed.");*/
           addr = utils.add64(addr, toRead);
           bytes+= toRead;
         }
