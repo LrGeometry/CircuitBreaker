@@ -44,7 +44,7 @@ module Bridges
   @readDirectory = $dsl.mref(0x2328B4).bridge(Types::Uint32, Types::DirInfo.pointer, Types::Uint32.pointer, Types::Handle, Types::Uint64)
   @closeDirectory = $dsl.mref(0x232828).bridge(Types::Uint32, Types::Handle.pointer)
   
-  @sendSyncRequestWrapper = $dsl.mref(0x3ace5c).bridge(Types::Uint32, Types::SessionHandle, Types::Void.pointer, Types::Uint32).set_names("session", "command", "command_length")
+  @sendSyncRequestWrapper = $dsl.mref(0x3ace5c).bridge(Types::Result, Types::SessionHandle, Types::Void.pointer, Types::Uint32).set_names("session", "command", "command_length")
   
   class << self
     attr_reader :strlen
