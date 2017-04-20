@@ -35,11 +35,11 @@ module IPC
       handleDescriptor = (words[1] >> 31) & 0x0001
       
       if ipcVersion != 4 then
-        raise "bad IPC version: " + ipcVersion.to_s
+        puts "bad IPC version: " + ipcVersion.to_s
       end
 
       v_handleDescriptor = handleDescriptor > 0 ? HandleDescriptor.unpack(io) : nil
-    
+
       v_xDescriptors = numXDescriptors.times.map do |_|
         BufferDescriptorX.unpack(io)
       end
@@ -53,8 +53,8 @@ module IPC
         BufferDescriptorW.unpack(io)
       end
 
-      io.read(((io.pos / 16.0).ceil * 16) - pos) # padding
-      v_data = io.read(dataSize * 4)
+      io.read((((o.pos / 16) * 16) - pos) # padding
+      v_data = io.read(dataSize + 0x10)
 
       v_cDescriptor = cDescriptor > 0 ? BufferDescriptorC.unpack(io) : nil
 
@@ -89,7 +89,7 @@ module IPC
               @aDescriptors.length << 20 | # "Number of buf A descriptors (each: 3 words)."
               @bDescriptors.length << 24 | # "Number of buf B descriptors (each: 3 words)."
               @wDescriptors.length << 28 # "Number of type W descriptors (each: 3 words), never observed."
-      word1 = @data.size |
+      word1 = (@data.size / 4.0) | # I'm not sure this is actually correct
               (@cDescriptorEnabled ? 2 : 0) << 10 | # "If set to 2, enable buf C descriptor."
               (@handleDescriptor != nil ? 1 : 0) << 31 # "Enable handle descriptor."
       # There's gotta be some fields missing in word1, right?
@@ -100,7 +100,7 @@ module IPC
         end.join
       end.join
 
-      padding = 0.chr * (((firstPart.length/16.0).ceil)*16 - firstPart.length)
+      padding = String.new # I need to figure this out, too
 
       secondPart = @data + (@cDescriptor ? @cDescriptor.pack : String.new)
       
@@ -289,6 +289,8 @@ end
 class Session
   def initialize(handle)
     @handle = handle
+    @buf = $dsl.malloc 0x2000
+    @buf_size = 0x2000
   end
 
   def self.connect_service(name)
@@ -313,8 +315,22 @@ class Session
     return self.new(handle)    
   end
 
+  def build_and_send(&block)
+    send(IPC::create_message(&block))
+  end
+  
   def send(message)
-    return Bridges::sendSyncRequestWrapper(@handle, message, message.length)
+    if message.length > @buf_size then
+      @buf.free
+      @buf_size = ((message.length - 1) / 0x2000) * 0x2000
+      @buf = $dsl.malloc @buf_size
+    end
+    @buf.write(message)
+    return Bridges::sendSyncRequestWrapper.call(@handle, @buf, @buf_size)
+  end
+
+  def close
+    SVC::CloseHandle.call(@handle)
   end
   
   attr_reader :handle
