@@ -54,6 +54,7 @@ class ResultCode
   end
 end
 
+# http://switchbrew.org/index.php?title=Error_codes&oldid=406
 {
   0x0000 => "OK",
   0x1015 => "no such service/access denied",
@@ -69,11 +70,15 @@ end
   0xE601 => "Syscall copy from user failed.",
   0xEA01 => "Time out? When you give 0 handles to svcWaitSynchronizationN.",
   0xEE01 => "When you give too many handles to svcWaitSynchronizationN.",
-  0xFA01 => "Wrong memory permission?",
   0xF201 => "No such port",
+  0xFA01 => "Wrong memory permission?",
   0x10601 => "Port max sessions exceeded.",
   0x10801 => "Out of memory",
   0x7D402 => "Title-id not found",
+  0x13B002 => "Gamecard not inserted",
+  0x171402 => "Invalid gamecard handle.",
+  0x1A4A02 => "Out of memory",
+  0x2EE202 => "Unknown media-id",
   0x2EE602 => "Path too long",
   0x6609 => "Invalid memory state/permission",
   0x6A09 => "Invalid Nrr",
