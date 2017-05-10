@@ -39,7 +39,8 @@ class SwitchDSL
   end
 
   attr_accessor :bind
-
+  attr_accessor :switch
+  
   def load(file)
     bind.eval(File.read(file), file)
     nil
