@@ -10,6 +10,7 @@ class ResultCode
   @@known_mods = {
     1 => "Kernel",
     2 => "FS",
+    5 => "GameCard",
     9 => "RO service",
     10 => "IPC",
     11 => "IPC",
@@ -52,9 +53,17 @@ class ResultCode
   def inspect
     to_s
   end
+
+  def to_i
+    @number
+  end
+
+  def ==(other)
+    @number == other.to_i
+  end
 end
 
-# http://switchbrew.org/index.php?title=Error_codes&oldid=406
+# http://switchbrew.org/index.php?title=Error_codes&oldid=429
 {
   0x0000 => "OK",
   0x1015 => "no such service/access denied",
@@ -71,15 +80,22 @@ end
   0xEA01 => "Time out? When you give 0 handles to svcWaitSynchronizationN.",
   0xEE01 => "When you give too many handles to svcWaitSynchronizationN.",
   0xF201 => "No such port",
+  0xF801 => "Unhandled usermode exception",
   0xFA01 => "Wrong memory permission?",
   0x10601 => "Port max sessions exceeded.",
   0x10801 => "Out of memory",
-  0x7D402 => "Title-id not found",
+  0x7D402 => "Permission denied or title-id not found",
   0x13B002 => "Gamecard not inserted",
   0x171402 => "Invalid gamecard handle.",
   0x1A4A02 => "Out of memory",
+  0x196002 => "Out of memory",
+  0x196202 => "Out of memory",
   0x2EE202 => "Unknown media-id",
   0x2EE602 => "Path too long",
+  0x2F5A02 => "Offset outside storage",
+  0x313802 => "Operation not supported",
+  0x320002 => "Permission denied",
+  0xDC05 => "Gamecard not inserted",
   0x6609 => "Invalid memory state/permission",
   0x6A09 => "Invalid Nrr",
   0xA209 => "Unaligned Nrr address",
@@ -94,6 +110,8 @@ end
 }.each_pair do |k, v|
   ResultCode.known(k, v)
 end
+
+ResultCode::OK = ResultCode.get(0)
 
 module Types
   Result = NumericType.new("Result", "L<", 4)
