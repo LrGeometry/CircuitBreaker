@@ -39,7 +39,7 @@ module Bridges
   @fopen = $dsl.mref(0x43DDB4).bridge(Types::File.pointer, Types::Char.pointer, Types::Char.pointer)
   @fread = $dsl.mref(0x438A14).bridge(Types::Int32, Types::Void.pointer, Types::Uint32, Types::Uint32, Types::File.pointer)
   @fclose = $dsl.mref(0x4384D0).bridge(Types::Uint32, Types::File.pointer)
-  @memcpy = $dsl.mref(0x44338C).bridge(Types::Uint32, Types::Void.pointer, Types::Void.pointer, Types::Uint32)
+  @memcpy = $dsl.mref(0x44338C).bridge(Types::Uint32, Types::Void.pointer, Types::Void.pointer, Types::Uint32).set_names("dest", "src", "n")
   @openDirectory = $dsl.mref(0x233894).bridge(Types::Uint32, Types::Handle.pointer, Types::Char.pointer, Types::Uint32)
   @readDirectory = $dsl.mref(0x2328B4).bridge(Types::Uint32, Types::DirInfo.pointer, Types::Uint32.pointer, Types::Handle, Types::Uint64)
   @closeDirectory = $dsl.mref(0x232828).bridge(Types::Uint32, Types::Handle.pointer)
@@ -242,7 +242,7 @@ module SVC
 
   # untested
   # size must match from MapMemoryMirror, otherwise you get an invalid size error
-  UnmapMemoryMirror = svc[0x52].bridge(Types::Result, Types::Handle.pointer, Types::Void.pointer, Types::Uint64).set_names("mirror_handle", "addr", "size")
+  UnmapMemoryMirror = svc[0x52].bridge(Types::Result, Types::Handle, Types::Void.pointer, Types::Uint64).set_names("mirror_handle", "addr", "size")
 end
 
 class Pointer
