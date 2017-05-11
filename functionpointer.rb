@@ -39,13 +39,9 @@ class FunctionPointer
     
     int_values = (values[:integer] || []).map do |v| v[1] end
     float_values = (values[:float] || []).map do |v| v[1] end
-    
-    retV = @switch.command("invokeBridge", {
-                             :funcPtr => @pointer.to_switch,
-                             :intArgs => int_values,
-                             :registers => [],
-                             :floatArgs => float_values})["returnValue"]
 
+    retV = @switch.call(@pointer, int_values, [], float_values)
+    
     finalizers.each do |f|
       f.call
     end

@@ -34,58 +34,27 @@ module Types
 end
 
 class SwitchDSL
-  def initialize(switch)
-    @switch = switch
-  end
-
   attr_accessor :bind
-  attr_accessor :switch
   
   def load(file)
     bind.eval(File.read(file), file)
     nil
   end
-  
-  def base_addr
-    @base_addr||= Pointer.from_switch(@switch,
-                                      @switch.command("get", {:field => "baseAddr"})["value"])
-  end
-  
-  def main_addr
-    @main_addr||= Pointer.from_switch(@switch,
-                                      @switch.command("get", {:field => "mainAddr"})["value"])
-  end
-  
-  def sp
-    @sp||= Pointer.from_switch(@switch,
-                               @switch.command("get", {:field => "sp"})["value"])
-  end
-
-  def tls
-    Pointer.from_switch(@switch,
-                        @switch.command("get", {:field => "tls"})["value"])
-  end
-  
-  def mref(off)
-    main_addr + off
-  end
-  
-  def invoke_gc
-    @switch.command("invokeGC", {})
-    nil
-  end
-  
+    
   def malloc(size)
-    Pointer.from_switch(@switch,
-                        @switch.command("malloc", {:length => size})["address"])
+    raise "nyi"
   end
 
   def new(type, count=1)
     malloc(type.size * count).cast!(type)
   end
 
+  def make_pointer(addr)
+    Pointer.new(self, addr)
+  end
+  
   def nullptr
-    Pointer.new(@switch, 0)
+    make_pointer(0)
   end
   
   def string_buf(string)
@@ -97,17 +66,6 @@ class SwitchDSL
   end
   
   def free(pointer)
-    pointer.free
-  end
-
-  def jsrepl
-    require "readline"
-    while buf = Readline.readline("> ", true) do
-      if buf == "exit" || buf == "quit" then
-        break
-      else
-        puts @switch.command("eval", {:code => buf})["returnValue"]
-      end
-    end
+    raise "nyi"
   end
 end

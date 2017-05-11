@@ -15,7 +15,7 @@ class PointerType < Type
   end
 
   def encode(val)
-    [val.value].pack("Q<").unpack("L<L<")
+    [val.value].pack("Q<")
   end
 
   def is_pointer
@@ -32,19 +32,18 @@ class PointerType < Type
 
   def coerce_to_argument(switch, value, finalizer_list)
     if @pointedType == Types::Char && value.is_a?(String) then
-      buf = Pointer.from_switch(switch, switch.command("malloc", {:length => value.length + 1})["address"])
+      buf = switch.malloc(value.length + 1)
       buf.cast! Types::Char
       buf.write(value)
       buf[value.length] = 0
       finalizer_list.push(proc do
-                            buf.free
+                            switch.free buf
                           end)
-      return encode(buf)
+      return buf.value
     end
     if value.is_a? Array then
-      buf = Pointer.from_switch(switch,
-                                switch.command("malloc",
-                                               {:length => value.length * @pointedType.size})["address"])
+      buf = switch.malloc(value.length * @pointedType.size)
+
       buf.cast! @pointedType
       value.each_with_index do |item, i|
         buf[i] = item
@@ -53,18 +52,18 @@ class PointerType < Type
                             value.length.times do |i|
                               value[i] = buf[i]
                             end
-                            buf.free
+                            @switch.free buf
                           end)
-      return encode(buf)
+      return buf.value
     end
     if value == nil then
-      return encode(Pointer.new(switch, 0))
+      return 0
     end
-    encode(value)
+    value.value
   end
 
-  def coerce_from_return(switch, pair)
-    Pointer.from_switch(switch, pair).cast!(@pointedType)
+  def coerce_from_return(switch, value)
+    Pointer.new(switch, value).cast!(@pointedType)
   end
 end
 
@@ -79,19 +78,21 @@ class Pointer
   attr_accessor :value
   
   def self.from_switch(switch, arr)
+    puts "deprecated"
     return self.new(switch, arr.pack("L<L<").unpack("Q<")[0])
   end
   
   def to_switch(offset=0)
+    puts "deprecated"
     [@value + offset].pack("Q<").unpack("L<L<")
   end
 
   def read(length, offset=0, &block)
-    @switch.command("read", {:address => to_switch(offset), :length => length}, &block)
+    @switch.read(self, offset, length, &block)
   end
 
   def write(data, offset=0)
-    @switch.command("write", {:address => to_switch(offset), :payload => Base64.strict_encode64(data)})
+    @switch.write(self, offset, length, data)
     nil
   end
 
@@ -176,7 +177,7 @@ class Pointer
   end
 
   def free
-    @switch.command("free", {:address => self.to_switch})
+    @switch.free self
     nil
   end
 end

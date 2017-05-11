@@ -131,11 +131,11 @@ module Types
       if value.is_a? ResultCode then
         value = value.number
       end
-      [value].pack("Q<").unpack("L<L<")
+      value
     end
 
-    def coerce_from_return(switch, pair)
-      ResultCode.get(pair.pack("L<L<").unpack("Q<")[0])
+    def coerce_from_return(switch, value)
+      ResultCode.get(value)
     end
   end
 end

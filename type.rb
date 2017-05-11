@@ -121,11 +121,11 @@ class NumericType < Type
   end
   
   def coerce_to_argument(switch, value, finalizers)
-    [value].pack("Q<").unpack("L<L<")
+    value
   end
 
-  def coerce_from_return(switch, pair)
-    pair.pack("L<L<").unpack("Q<")[0]
+  def coerce_from_return(switch, value)
+    value
   end
 
   def argument_mode
@@ -151,11 +151,11 @@ class BooleanType < Type
   end
 
   def coerce_to_argument(switch, value, finalizers)
-    [value ? 1 : 0].pack("Q<").unpack("L<L<")
+    value ? 1 : 0
   end
 
-  def coerce_from_return(switch, pair)
-    pair.pack("L<L<").unpack("Q<")[0] > 0
+  def coerce_from_return(switch, value)
+    value != 0
   end
   
   def is_supported_return_type?
