@@ -6,6 +6,8 @@ const dnsd = require("dnsd");
 const ip = require("ip");
 const express = require("express");
 
+const request = require("request");
+
 let dns = dnsd.createServer((req, res) => {
   if(req.question[0].name == "html5gamepad.com") {
     res.end("173.255.216.50");
@@ -27,6 +29,12 @@ app.get("/minmain.js", (req, res) => {
 
 app.get("/bundle.js", (req, res) => {
   res.end(fs.readFileSync(path.resolve(__dirname, "public/bundle.js")));
+});
+
+app.use(function(req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  next();
 });
 
 app.listen(80, "0.0.0.0", (err) => {

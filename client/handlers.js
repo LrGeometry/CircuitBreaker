@@ -19,25 +19,19 @@ export default (prims) => {
       });
     },
     read: (data, json, bin) => {
-      bin(data.length).then((stream) => {
+      return bin(data.length).then((stream) => {
         let addr = data.address;
         let bytes = 0;
         while(bytes < data.length) {
           let toRead = Math.min(chunkSize, data.length-bytes);
           prims.mempeek(addr, toRead, (ab) => {
-            stream(ab);
-          });
-          /*
-          prims.read(addr, targetBuffer);
-          stream(toRead == chunkSize ? targetBuffer : targetBuffer.slice(0, toRead));
-          utils.log("streamed.");*/
+            stream.submit(ab);
+          });          
           addr = utils.add64(addr, toRead);
           bytes+= toRead;
         }
+        stream.close();
       });
-      //let target = new Uint8Array(data.length);
-      //prims.read(data.address, target);
-      //return bin(target);
     },
     write: (data, json, bin) => {
       let buffer = new Uint8Array(atob(data.payload).split("").map(function(c) {
@@ -49,19 +43,61 @@ export default (prims) => {
         length: data.length
       });
     },
+    dumpAllMemory: (data, json, bin) => {
+      utils.log("initialized memory dumper");
+      return bin(-1).then((stream) => {
+        utils.log("opened stream");
+        let end = [0, 0];
+	let begin = [0, 0];
+        let c = 0;
+        while(true) {
+          let meminfo = prims.queryMem(begin, true);
+          end = utils.add2(meminfo[0], meminfo[1]);
+          if(end[1] < begin[1]) {
+            break;
+          }
+          if((meminfo[3][0] & 1) > 0) { // if we have R permission
+            let totalSize = meminfo[1][0];
+            stream.submit({
+              type: "newPage",
+              begin: meminfo[0],
+              end,
+              size: totalSize,
+              memState: meminfo[2][0],
+              memPerms: meminfo[3][0],
+              pageInfo: meminfo[4][0]
+            });
+            let maxSize = 0x800000; // 0x800000
+            for(let i = 0; i < totalSize; i+= maxSize) {
+              let size = totalSize - i;
+              size = size > maxSize ? maxSize : size;
+
+              prims.mempeek(utils.add2(meminfo[0], i), size, (ab) => {
+                stream.submit({type: "pageData"}, ab);
+              });
+            }            
+          }
+          begin = end;
+        }
+        stream.close();
+        prims.invokeGC();
+      });
+    },
     invokeGC: (data, json, bin) => {
       prims.invokeGC();
       return json({
       });
     },
     get: (data, json, bin) => {
-      json((() => {
+      utils.log("get " + JSON.stringify(data));
+      return json((() => {
         switch(data.field) {
         case "baseAddr": return {value: prims.base};
         case "mainAddr": return {value: prims.mainaddr};
         case "sp": return {value: prims.getSP()};
         case "tls": return {value: prims.getTLS()};
         }
+        utils.log("unknown field");
         return {};
       })());
     },

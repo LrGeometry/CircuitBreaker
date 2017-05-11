@@ -15,67 +15,61 @@ def walk_mem_map
 end
 
 def dump_all_mem(path)
-  ptr = Pointer.new(@switch, 0)
-
-  permissions = ["---", "R--", "-W-", "RW-", "--X", "R-X", "-WX", "RWX"]
-
   if !Dir.exist?(path) then
     Dir.mkdir(path)
   end
 
-  progressString = "0%".ljust(6, " ")
+  progressString = ""
 
-  totalBytesDumped = 0
-  blocks = []
+  permissions = ["NONE", "R", "W", "RW", "X", "RX", "WX", "RWX"]
   
-  while ptr.value < 0x8000000000 do
-    SVC::QueryMemory.call(@memInfo, @pageInfo, ptr)
-    memInfo = @memInfo.deref
-    ptr = memInfo.base
-    len = memInfo.pageSize
-    nextptr = ptr + len
-
-    if (memInfo.memoryPermissions & 1) > 0 then
-      filename = path + "/dump" + "0x" + ptr.value.to_s(16).rjust(16, "0")
-      
-      File.open(filename, "wb") do |dump|
-        # the switch browser seems to have a really nasty habit of dropping long WebSocket packets
-        # I thought splitting them up into 16k chunks in JavaScript would work, but apparently
-        # it also drops WebSocket packets if I send a bunch of them in quick succession. Maybe
-        # it combines them internally.
-        while ptr.value < nextptr.value do
-          toRead = [len, 1024 * 16].min
-          dump.write(ptr.read(toRead) do |buf, read, total|
-                       STDOUT.print "\b" * progressString.length
-                       progressString = "0x" + (ptr.value + read).to_s(16).rjust(16, "0") + " " + permissions[memInfo.memoryPermissions].to_s
-                       STDOUT.print progressString
-                       STDOUT.flush
-                     end)
-          ptr+= toRead
-        end
-        
-        blocks.push({:memInfo => memInfo, :ptr => ptr, :filename => filename})
-        totalBytesDumped+= len
+  pageFile = nil
+  filename = nil
+  ptr = nil
+  currentHeader = nil
+  blocks = []
+  @switch.command("dumpAllMemory", {}) do |header, data|
+    if(header["type"] == "newPage") then
+      if(pageFile) then
+        pageFile.close
       end
+      currentHeader = header
+      ptr = Pointer.from_switch(@switch, header["begin"])
+      filename = path + "/dump" + "0x" + ptr.value.to_s(16).rjust(16, "0")
+      pageFile = File.open(filename, "wb")
+      header["filename"] = filename
+      blocks.push header
+    elsif header["type"] == "pageData" then
+      pageFile.write(data)
+      ptr+= data.length
+    else
+      raise "invalid header type"
     end
-    ptr = nextptr
+    
+    STDOUT.print "\b" * progressString.length
+    progressString = "0x" + ptr.value.to_s(16).rjust(16, "0") + " " + permissions[currentHeader["memPerms"]].to_s
+    STDOUT.print progressString
+    STDOUT.flush
   end
 
-  STDOUT.print "\b" * progressString.length
-  STDOUT.puts "100%"
+  puts
+    
   puts "Saving flags and radare2 script"
   
-  File.open(path + "/flags.csv", "w") do |flags|
-    File.open(path + "/load.r2", "w") do |r2|
+  File.open(path + "/load.r2", "w") do |r2|
+    File.open(path + "/blocks.csv", "w") do |blocksCsv|
+      blocksCsv.puts "filename,begin,size,state,perms,pageInfo"
       blocks.each do |block|
-        if block[:memInfo].memoryPermissions & 1 > 0 then
-          r2.puts "on #{block[:filename]} 0x#{base.value.to_s(16)}"
-        end
+        r2.puts "on #{block["filename"]} 0x#{Pointer.from_switch(@switch, block["begin"]).value.to_s(16)}"
+        blocksCsv.puts "#{block["filename"]},0x#{Pointer.from_switch(@switch, block["begin"]).value.to_s(16).rjust(16, "0")},#{block["size"]},#{block["memState"]},#{block["memPerms"]},#{block["pageInfo"]}"
       end
-      
+    end
+
+    File.open(path + "/flags.csv", "w") do |flags|
+      flags.puts "name,position"
       ["base_addr", "main_addr", "sp", "tls"].each do |flag|
-        r2.puts "f #{flag} @ 0x#{send(flag).to_s(16).rjust(16, "0")}"
-        flags.puts "#{flag},0x#{send(flag).to_s(16).rjust(16, "0")}"
+        r2.puts "f #{flag} @ 0x#{send(flag).value.to_s(16).rjust(16, "0")}"
+        flags.puts "#{flag},0x#{send(flag).value.to_s(16).rjust(16, "0")}"
       end
     end
   end

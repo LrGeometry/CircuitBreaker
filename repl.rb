@@ -1,9 +1,11 @@
 require "bundler/setup"
 require "websocket-eventmachine-server"
+require "em-http-server"
 require "thread"
 require "json"
 require "pry"
 require "base64"
+require "socket"
 
 require_relative "dsl.rb"
 require_relative "remote.rb"
@@ -15,7 +17,7 @@ binQueue = Queue.new
 Thread.new do
   puts "Waiting for connection from switch..."
   ws = wsQueue.pop
-  puts "Got connection from switch"
+  puts "Got connection from switch at " + Socket.unpack_sockaddr_in(ws.get_peername)[1]
   ws.onclose do
     puts "Lost connection from switch"
     
@@ -41,6 +43,25 @@ Thread.new do
 
   EventMachine::stop_event_loop
   exit 0
+end
+
+class HTTPHandler < EM::HttpServer::Server
+  def initialize(binQueue)
+    super
+    @binQueue = binQueue
+  end
+  
+  def process_http_request
+    response = EM::DelegatedHttpResponse.new(self)
+    response.headers["Access-Control-Allow-Origin"] =  "*"
+    response.headers["Access-Control-Allow-Headers"] =  "Content-Type"
+    response.status = 200
+    response.send_response
+    
+    if @http_request_method == "POST" then
+      @binQueue.push @http_content
+    end
+  end
 end
 
 EM.run do
@@ -72,4 +93,6 @@ EM.run do
       puts "got error: " + err.to_s
     end
   end
+
+  EM::start_server("0.0.0.0", "8081", HTTPHandler, binQueue)
 end

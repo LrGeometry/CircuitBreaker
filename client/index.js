@@ -35,11 +35,17 @@ import handlerGen from "./handlers.js";
           binaryPayload: false,
           response
         }));
+
+        return Promise.resolve();
       };
 
       let binaryStream = (length) => {
+        let multi = false;
+        if(length < 0) {
+          multi = true;
+        }
         // wait for any previous streams to finish. concurrent streams are not allowed.
-        return streamBeginPromise = streamBeginPromise.then(() => {
+        let promise = streamBeginPromise.then(() => {
           ws.send(JSON.stringify({
             command: "return",
             jobTag: data.jobTag,
@@ -48,15 +54,63 @@ import handlerGen from "./handlers.js";
             streamingPayload: true,
             binaryLength: length
           }));
+
+          let resolve;
+          let finishedPromise = new Promise((actualResolve, reject) => {
+            resolve = actualResolve;
+          });
           
-          return (chunk) => {
-            ws.send(chunk);
+          return {
+            submit(a, b) {
+              let header, chunk;
+              if(multi) {
+                header = a; chunk = b;
+                ws.send(JSON.stringify({
+                  type: "data",
+                  header,
+                  hasChunk: chunk !== undefined,
+                  length: chunk === undefined ? -1 : chunk.byteLength
+                }));
+              } else {
+                chunk = a;
+              }
+              if(chunk) {
+                let xhr = new XMLHttpRequest();
+                xhr.open("POST", "http://" + window.location.hostname + ":8081/filedump", false);
+                xhr.setRequestHeader("Content-Type", "application/octet-stream");
+                xhr.send(chunk);
+              }
+            },
+            close() {
+              if(multi) {
+                ws.send(JSON.stringify({
+                  type: "finish"
+                }));
+              }
+              resolve();
+            },
+            finishedPromise
           };
         });
-      };
 
+        streamBeginPromise = promise.then((stream) => {
+          return stream.finishedPromise;
+        });
+
+        return promise;
+      };
+      
       try {
-        handlers[data.command](data, jsonResponse, binaryStream);
+        handlers[data.command](data, jsonResponse, binaryStream).catch((e) => {
+          utils.log(e);
+          utils.log(e.stack);
+          ws.send(JSON.stringify({
+            command: "return",
+            jobTag: data.jobTag,
+            jobCommand: data.command,
+            error: e
+          }));
+        });
       } catch(e) {
         utils.log(e);
         utils.log(e.stack);

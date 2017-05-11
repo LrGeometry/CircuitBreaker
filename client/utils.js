@@ -5,9 +5,9 @@ export let loaded = () => {
 };
 
 export let log = (msg) => {
-  //if(window.socket) {
-  //  window.socket.send(JSON.stringify({command: "log", message: msg}));
-  //}
+  if(window.socket) {
+    window.socket.send(JSON.stringify({command: "log", message: msg}));
+  }
   logBox.textContent+= msg + "\n";
 };
 
