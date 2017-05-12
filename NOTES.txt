@@ -46,8 +46,8 @@ r0 ... r7 = Parameter/result registers
 
 The Frame Record
 ================
-u64 prev_frame_record_ptr;
-u64 link_register_content;
+u64 prev_frame_record_ptr; // lowest addressed
+u64 link_register_content; // highest addressed
 
 The BL instruction
 ==================

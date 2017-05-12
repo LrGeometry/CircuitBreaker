@@ -1,0 +1,156 @@
+structs:
+  fixed
+    +0x000: ldr x0; (context_load_struct)
+    +0x008: ldr x2; br x2 (gadget 1)
+    +0x010: ldr x9; blr x9 (gadget 2)
+    +0x028: ldr w1 (block_struct_1)
+    +0x038: ldr x2 (discard?)
+  context_load_struct
+    +0x050: ldr x29
+    +0x058: ldr x30 (gadget 3)
+    +0x068: ldr x2; mov sp, x2; (target_sp)
+    +0x070: ldr d8
+    +0x078: ldr d9
+    +0x080: ldr d10
+    +0x088: ldr d11
+    +0x090: ldr d12
+    +0x098: ldr d13
+    +0x0A0: ldr d14
+    +0x0A8: ldr d15
+  block_struct_1
+  block_struct_2
+  block_struct_3
+  savearea
+  loadarea
+  dumparea
+
+jaddr: jumps to [mref(0x91F320)+0x8]
+   0x7a9c5a5eec       adrp x8, 0x7a9cb25000 ; x8 = fixed - 0x320 = 0x7a9cb25000
+   0x7a9c5a5ef0       add x8, x8, 0x320     ; x8 = fixed = 0x7a9cb25320
+   0x7a9c5a5ef4       ldr x2, [x8, 8] ; x2 = load_x0_w1_x2_x9_blr_x9
+/- 0x7a9c5a5ef8       br x2
+|
+\- 0x7a9c69c7f0       ldr x9, [x8, 0x10] ; x9 = load_x2_x30_mov_sp_into_x2_br_x30
+   0x7a9c69c7f4       ldr x0, [x8]       ; x0 = context_load_struct
+   0x7a9c69c7f8       ldr w1, [x8, 0x28] ; w1 = block_struct_1
+   0x7a9c69c7fc       ldr x2, [x8, 0x38] ; x2 = 
+/- 0x7a9c69c800       blr x9
+|
+\- 0x7a9c639eb4       ldp x29, x30, [x0, 0x50] ; x30 = context_load_struct[0x58] = load_x2_x8_br_x2
+   0x7a9c639eb8       ldr x2, [x0, 0x68] ; x2 = context_load_struct[0x68] = target_sp
+   0x7a9c639ebc       mov sp, x2 ; sp = x2
+   0x7a9c639ec0       ldp d8, d9, [x0, 0x70] ; discard?
+   0x7a9c639ec4       ldp d10, d11, [x0, 0x80] ; discard?
+   0x7a9c639ec8       ldp d12, d13, [x0, 0x90] ; discard?
+   0x7a9c639ecc       ldp d14, d15, [x0, 0xa0] ; discard?
+   0x7a9c639ed0       mov x0, x1
+/- 0x7a9c639ed4       cbnz x1, 0x7a9c639edc
+|  0x7a9c639ed8       movz x0, 0x1 ; skipped
++- 0x7a9c639edc       br x30
+|
+\- 0x001a7c98         ldr x2, [x8, 0x18]
+   0x001a7c9c         ldr x8, [x8, 0x28] ; x8 = block_struct_1
+   0x001a7ca0         mov x0, x1
+   0x001a7ca4         mov x1, x8
+   0x001a7ca8         br x2
+
+
+Gadget List:
+
+load_x19 @ 0x6C3E4
+  0x7a9c2723e4       ldr x19, [sp, 0x28]
+  0x7a9c2723e8       ldp x29, x30, [sp, 0x30]
+  0x7a9c2723ec       add sp, sp, 0x40
+  0x7a9c2723f0       ret
+
+  loads x19 off the stack, moves stack frame
+  
+str_x20 @ 0x117330
+  0x0011d330       str x20, [x19, 0x10]       
+  0x0011d334       ldp x29, x30, [sp, 0x10]
+  0x0011d338       ldp x20, x19, [sp], 0x20   
+  0x0011d33c       ret
+
+  stores x20 into a buffer pointed to by x19
+  loads x20 and x19 off the stack (doesn't move stack frame)
+
+str_x0 @ 0xFDF4C
+  0x00103f4c       ldp x29, x30, [sp, 0x10]
+  0x00103f50       str x0, [x19]  
+  0x00103f54       ldr x19, [sp], 0x20
+  0x00103f58       ret
+
+  stores x0 into a
+
+str_x1 @ 0x581B8C
+  0x7a9c787b8c       str x1, [x19, 0x18]      
+  0x7a9c787b90       ldp x29, x30, [sp, 0x10]
+  0x7a9c787b94       ldp x20, x19, [sp], 0x20 
+  0x7a9c787b98       ret
+
+load_x20_x19 @ 0x581B90 (subgadget of str_x1)
+  0x7a9c787b90       ldp x29, x30, [sp, 0x10]
+  0x7a9c787b94       ldp x20, x19, [sp], 0x20 
+  0x7a9c787b98       ret
+
+load_and_str_x8 @ 0x474A98
+  0x7a9c67aa98       ldr x8, [x19]            
+  0x7a9c67aa9c       str x8, [x20]            
+  0x7a9c67aaa0       ldp x29, x30, [sp, 0x10]
+  0x7a9c67aaa4       ldp x20, x19, [sp], 0x20 
+  0x7a9c67aaa8       ret
+  
+loadgadg @ 0x433620
+  0x7a9c639620       ldp x2, x3, [x0, 0x10]   
+  0x7a9c639624       ldp x4, x5, [x0, 0x20]   
+  0x7a9c639628       ldp x6, x7, [x0, 0x30]   
+  0x7a9c63962c       ldp x8, x9, [x0, 0x40]   
+  0x7a9c639630       ldp x10, x11, [x0, 0x50] 
+  0x7a9c639634       ldp x12, x13, [x0, 0x60] 
+  0x7a9c639638       ldp x14, x15, [x0, 0x70] 
+  0x7a9c63963c       ldp x16, x17, [x0, 0x80] 
+  0x7a9c639640       ldp x18, x19, [x0, 0x90] 
+  0x7a9c639644       ldp x20, x21, [x0, 0xa0] 
+  0x7a9c639648       ldp x22, x23, [x0, 0xb0] 
+  0x7a9c63964c       ldp x24, x25, [x0, 0xc0] 
+  0x7a9c639650       ldp x26, x27, [x0, 0xd0] 
+  0x7a9c639654       ldp x28, x29, [x0, 0xe0] 
+  0x7a9c639658       ldr x30, [x0, 0x100]
+  0x7a9c63965c       ldr x1, [x0, 0xf8]
+  0x7a9c639660       mov sp, x1
+  0x7a9c639664       ldp d0, d1, [x0, 0x110]  
+  0x7a9c639668       ldp d2, d3, [x0, 0x120]  
+  0x7a9c63966c       ldp d4, d5, [x0, 0x130]  
+  0x7a9c639670       ldp d6, d7, [x0, 0x140]  
+  0x7a9c639674       ldp d8, d9, [x0, 0x150]  
+  0x7a9c639678       ldp d10, d11, [x0, 0x160]
+  0x7a9c63967c       ldp d12, d13, [x0, 0x170]
+  0x7a9c639680       ldp d14, d15, [x0, 0x180]
+  0x7a9c639684       ldp d16, d17, [x0, 0x190]
+  0x7a9c639688       ldp d18, d19, [x0, 0x1a0]
+  0x7a9c63968c       ldp d20, d21, [x0, 0x1b0]
+  0x7a9c639690       ldp d22, d23, [x0, 0x1c0]
+  0x7a9c639694       ldp d24, d25, [x0, 0x1d0]
+  0x7a9c639698       ldp d26, d27, [x0, 0x1e0]
+  0x7a9c63969c       ldp d28, d29, [x0, 0x1f0]
+  0x7a9c6396a0       ldr d30, [x0, 0x200]
+  0x7a9c6396a4       ldr d31, [x0, 0x208]
+  0x7a9c6396a8       ldp x0, x1, [x0]         
+  0x7a9c6396ac       ret
+
+
+In order to compile a call operation, we need to generate a ROP sequence that
+ 1. copies each argument field's value to the state load region
+ 2. uses PegaSwitch ROP to load all registers from state load region
+ 3. calls the function
+ 4. copies x0 to return field
+For this, we need ROP gadgetry to
+ - copy from one arbitrary address to another (preferably both specified on the stack)
+ - save x0 to an arbitrary address
+
+to save x0 to an arbitrary address, we can steal some of that PegaSwitch ROP.
+they set the link register to point to the load_x19 gadget
+
+they use load_x19 to load x19 with dumparea + 0x300-0x10
+they use str_x20 to store x20 to dumparea + 0x300 (x19 + 0x10) so they don't clobber it
+  that also loads x19 with 
