@@ -1,17 +1,20 @@
 require "pry"
 
-$exploitMap = {}
-
 require_relative "./dsl.rb"
-require_relative "./exploit/pegasus/remote.rb"
 
 exploit = "pegasus"
 if ARGV.length > 0 then
   exploit = ARGV[0]
 end
 
-if(!$exploitMap[exploit]) then
-  raise "no such exploit '#{exploit}'"
+case exploit
+when "pegasus"
+  require_relative "./exploit/pegasus/remote.rb"
+  Exploit::Pegasus.initialize.bind.pry
+when "tracer" # not really an exploit, but still provides a switch interface
+  require_relative "./tracer/tracer.rb"
+  Tracer.initialize.bind.pry
+else
 end
 
-$exploitMap[exploit].get_dsl.bind.pry
+
