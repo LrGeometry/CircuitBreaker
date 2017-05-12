@@ -9,3 +9,8 @@ gem "websocket-eventmachine-server"
 gem "pry"
 gem "rspec"
 gem "em-http-server"
+
+group :tracer do
+  gem "sequel"
+  # unicorn too, but... umm... it's complicated
+end
