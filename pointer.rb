@@ -92,7 +92,7 @@ class Pointer
   end
 
   def write(data, offset=0)
-    @switch.write(self, offset, length, data)
+    @switch.write(self, offset, data)
     nil
   end
 
