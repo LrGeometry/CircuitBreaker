@@ -91,7 +91,7 @@ RSpec.describe "svcs for memory mirrors" do
     begin
       expect(SVC::CreateMemoryMirror.call(mirror, region, 0x2000, 3)).to eq(ResultCode::OK)
       handle = mirror.deref
-      map = Pointer.new(switch.switch, 0x2000)
+      map = switch.make_pointer(0x2000)
       expect(map.query_memory.memoryPermissions).to eq(0)
       begin
         expect(SVC::MapMemoryMirror.call(handle, map, 0x2000, 3)).to eq(ResultCode.get(0xDC01))
@@ -110,7 +110,7 @@ RSpec.describe "svcs for memory mirrors" do
     begin
       expect(SVC::CreateMemoryMirror.call(mirror, region, 0x2000, 3)).to eq(ResultCode::OK)
       handle = mirror.deref
-      map = Pointer.new(switch.switch, 0x2000)
+      map = switch.make_pointer(0x2000)
       expect(map.query_memory.memoryPermissions).to eq(0)
       begin
         expect(SVC::UnmapMemoryMirror.call(handle, map, 0x2000)).to eq(ResultCode.get(0xdc01))

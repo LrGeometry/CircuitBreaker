@@ -34,7 +34,11 @@ module Types
 end
 
 class SwitchDSL
-  attr_accessor :bind
+  def initialize
+    @bind = binding
+  end
+  
+  attr_reader :bind
   
   def load(file)
     bind.eval(File.read(file), file)

@@ -29,8 +29,6 @@ module Types
   end
 end
 
-$dsl = self
-
 module Bridges
   @strlen = $dsl.mref(0x43A6E8).bridge(Types::Uint32, Types::Char.pointer)
   @smGetServiceHandle = $dsl.mref(0x3AD15C).bridge(Types::Result, Types::SessionHandle.pointer, Types::Char.pointer, Types::Uint32).set_names("session", "name", "length")
