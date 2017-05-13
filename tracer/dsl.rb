@@ -1,10 +1,12 @@
-module Tracer
-  RETURN_VECTOR = 0xDEADBEEF11110000
-  
+module Tracer  
   class DSL < SwitchDSL
     def initialize(pg_state)
+      super()
       @pg_state = pg_state
-      uc.mem_map(RETURN_VECTOR, 0x1000)
+      uc.mem_map(RETURN_VECTOR, 0x1000, 5)
+      uc.mem_write(RETURN_VECTOR, [0xd503201f].pack("Q<"))
+      uc.reg_write(Unicorn::UC_ARM64_REG_SP, Flag[:name => "sp"].position)
+      uc.reg_write(Unicorn::UC_ARM64_REG_TPIDRRO_EL0, Flag[:name => "tls"].position)
     end
     
     attr_reader :pg_state
@@ -26,11 +28,12 @@ module Tracer
     end
 
     def malloc(size)
-      raise "nyi"
+      make_pointer(@pg_state.alloc.malloc(size))
     end
 
     def free(pointer)
-      raise "nyi"
+      @pg_state.alloc.free(pointer.value)
+      nil
     end
 
     def call(func_ptr, int_args, registers, float_args)
@@ -38,8 +41,8 @@ module Tracer
         uc.reg_write(Unicorn::UC_ARM64_REG_X0 + i, arg)
       end
       uc.reg_write(Unicorn::UC_ARM64_REG_LR, Tracer::RETURN_VECTOR)
-      binding.pry
-      uc.emu_start(func_ptr.value, Tracer::RETURN_VECTOR)
+      uc.emu_start(func_ptr.value, Tracer::RETURN_VECTOR+4)
+      return uc.reg_read(Unicorn::UC_ARM64_REG_X0)
     end
     
     def new_trace
