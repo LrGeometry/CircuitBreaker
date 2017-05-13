@@ -31,6 +31,9 @@ module Tracer
                        puts addr.to_s(16) + ": " + i.mnemonic + " " + i.op_str
                      end
                    end)
+
+      # enable NEON
+      @uc.reg_write(Unicorn::UC_ARM64_REG_CPACR_EL1, 3 << 20)
       
       @alloc = Allocator.new(self)
     end
