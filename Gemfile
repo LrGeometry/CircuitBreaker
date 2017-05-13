@@ -12,5 +12,7 @@ gem "em-http-server"
 
 group :tracer do
   gem "sequel"
-  # unicorn too, but... umm... it's complicated
+  gem "sqlite3"
+  # unicorn too, but... umm... it's complicated. grab my (misson20000's) fork of unicorn, compile+install it, and install the ruby bindings from that
+  # you'll have to build crabstone yourself too
 end
