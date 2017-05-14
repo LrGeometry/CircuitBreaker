@@ -23,7 +23,7 @@ module IPC
     end
     
     def self.unpack(io)
-      pos = io.pos
+      origin = io.pos
       words = io.read(8).unpack("L<L<")
       ipcVersion       = (words[0] >>  0) & 0xFFFF
       numXDescriptors  = (words[0] >> 16) & 0x000F
@@ -53,11 +53,10 @@ module IPC
         BufferDescriptorW.unpack(io)
       end
 
-      io.read((((o.pos / 16) * 16) - pos) # padding
-      v_data = io.read(dataSize + 0x10)
+      io.read((((io.pos-origin)/16.0).ceil*16.0)-io.pos) # padding
+      v_data = io.read((dataSize*4) - io.pos) # dataSize is in words counts everything before the payload, too
 
       v_cDescriptor = cDescriptor > 0 ? BufferDescriptorC.unpack(io) : nil
-
 
       return IPCMessage.new(v_xDescriptors,
                             v_aDescriptors,
@@ -89,22 +88,23 @@ module IPC
               @aDescriptors.length << 20 | # "Number of buf A descriptors (each: 3 words)."
               @bDescriptors.length << 24 | # "Number of buf B descriptors (each: 3 words)."
               @wDescriptors.length << 28 # "Number of type W descriptors (each: 3 words), never observed."
-      word1 = (@data.size / 4.0) | # I'm not sure this is actually correct
-              (@cDescriptorEnabled ? 2 : 0) << 10 | # "If set to 2, enable buf C descriptor."
-              (@handleDescriptor != nil ? 1 : 0) << 31 # "Enable handle descriptor."
-      # There's gotta be some fields missing in word1, right?
 
-      firstPart = [word0, word1].pack("L<L<") + (@handleDescriptor ? @handleDescriptor.pack : String.new) + [@xDescriptors, @aDescriptors, @bDescriptors, @wDescriptors].map do |arr|
+      descriptors = (@handleDescriptor ? @handleDescriptor.pack : String.new) + [@xDescriptors, @aDescriptors, @bDescriptors, @wDescriptors].map do |arr|
         arr.map do |d|
           d.pack
         end.join
       end.join
 
-      padding = String.new # I need to figure this out, too
+      padding = 0.chr * ((((8+descriptors.length)/16.0).ceil*16) - (8+descriptors.length))
 
       secondPart = @data + (@cDescriptor ? @cDescriptor.pack : String.new)
+
+      word1 = ((8 + descriptors.length + padding.length + secondPart.length)/4.0).floor | # Data size, patched in later
+              (@cDescriptorEnabled ? 2 : 0) << 10 | # "If set to 2, enable buf C descriptor."
+              (@handleDescriptor != nil ? 1 : 0) << 31 # "Enable handle descriptor."
+      # There's gotta be some fields missing in word1, right?
       
-      return firstPart + padding + secondPart
+      return [word0, word1].pack("L<L<") + descriptors + padding + secondPart
     end
     
     def send_current_pid
