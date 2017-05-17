@@ -1,4 +1,4 @@
-class ResultCode
+class ResultCode < StandardError
   def initialize(number, description)
     @number = number
     @mod_no = number & 0x1FF

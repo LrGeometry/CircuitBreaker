@@ -1,4 +1,5 @@
 require "pry"
+require "hexdump"
 
 require_relative "./dsl.rb"
 
