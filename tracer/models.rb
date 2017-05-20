@@ -1,54 +1,5 @@
-class TraceState < Sequel::Model
-  many_to_many :trace_pages
-  many_to_one :parent, :class => self
-
-  def initialize(*args)
-    super(*args)
-    @dirty = []
-  end
-  
-  def load_state(pg_state)
-    uc = pg_state.uc
-    memory_mapping = pg_state.memory_mapping
-    
-    trace_pages.each do |page|
-      if(memory_mapping[page.offset] != page) then
-        uc.mem_write(page.offset, page.data)
-        memory_mapping[page.offset] = page
-      end
-    end
-
-    fields = state.unpack("Q<*")
-    
-    for i in 0..28 do
-      uc.reg_write(Unicorn::UC_ARM64_REG_X0 + i, fields[i])
-    end
-    for i in 29..30 do
-      uc.reg_write(Unicorn::UC_ARM64_REG_X29 + (i-29), fields[i])
-    end
-
-    pg_state.trace_state = self
-  end
-
-  def dirty(addr, size)
-    @dirty+= [addr, size]
-  end
-  
-  def create_child
-    puts "creating child"
-    db.transaction do
-      child = TraceState.create(:state => state, :parent => self)
-      trace_pages.each do |tp|
-        child.add_trace_page(tp)
-      end
-      child.save
-      return child
-    end
-  end
-end
-
 class TracePage < Sequel::Model
-  SIZE = 0x10000
+  SIZE = 0x2000
   
   def offset
     header.unpack("Q<*")[0]
@@ -57,8 +8,127 @@ class TracePage < Sequel::Model
   def size
     header.unpack("Q<*")[1]
   end
+
+  def apply(pg_state)
+    memory_mapping = pg_state.memory_mapping
+    if(memory_mapping[offset] != self) then
+      pg_state.uc.mem_write(offset, data)
+      memory_mapping[offset] = self
+    end
+  end
+end
+
+# a trace state keeps track of what regions of memory are updated while
+# it is active. when the trace state is changed, the current one will "finalize".
+# this finalization process involved creating new memory blocks for the databse
+# wherever memory was updated while the trace state was active.
+# these will be added to "trace_pages".
+# the previous blocks will be added to "previous_pages" so that the state can be
+# "rewound" and the effects on the machine's state during the period the state was
+# active will be undone.
+
+class TraceState < Sequel::Model
+  many_to_many :trace_pages
+  many_to_many :previous_pages, :class => TracePage, :join_table => :trace_state_previous_pages, :left_key => :trace_state_id, :right_key => :trace_page_id
+  many_to_one :parent, :class => self
+
+  def initialize(*args)
+    super(*args)
+  end
+
+  # rewind state to beginning of parent
+  def rewind(pg_state)
+    puts "rewinding trace state " + id.to_s
+    if pg_state.trace_state then
+      pg_state.trace_state.finalize(pg_state)
+    end
+
+    previous_pages.each do |page|
+      page.apply(pg_state)
+    end
+    parent = self.parent
+    parent.apply_registers(pg_state)
+    
+    pg_state.trace_state = self.parent
+  end
+
+  def apply_registers(pg_state)
+    fields = state.unpack("Q<*")
+    uc = pg_state.uc
+    31.times do |i|
+      uc.reg_write(pg_state.x_reg(i), fields[i] || 0)
+    end
+  end
   
-  many_to_many :trace_states
+  def apply(pg_state)
+    puts "applying trace state " + id.to_s
+    if pg_state.trace_state then
+      pg_state.trace_state.finalize(pg_state)
+    end
+
+    trace_pages.each do |page|
+      page.apply(pg_state)
+    end
+
+    apply_registers(pg_state)
+    @dirty_pages||= Array.new
+    @dirty_pages.clear
+    
+    pg_state.trace_state = self
+  end  
+
+  def build_state(pg_state)
+    31.times.map do |i|
+      pg_state.uc.reg_read(pg_state.x_reg(i))
+    end.pack("Q<*")
+  end
+  
+  def finalize(pg_state)
+    puts "finalizing trace state " + id.to_s
+    uc = pg_state.uc
+
+    Sequel::Model.db.transaction do
+      state = build_state(pg_state)
+
+      @dirty_pages.each do |p|
+        add_previous_page(p)
+        new_page = TracePage.create(:header => p.header, :data => uc.mem_read(p.offset, p.size))
+        add_trace_page(new_page)
+        new_page.apply(pg_state)
+      end
+    end
+    @dirty_pages.clear
+  end
+  
+  def dirty(pg_state, addr, size)
+    walk = (addr/TracePage::SIZE).floor*TracePage::SIZE
+    while walk < addr + size do
+      page = pg_state.memory_mapping[walk]
+      if !@dirty_pages.include? page then
+        @dirty_pages.push page
+      end
+      walk+= TracePage::SIZE
+    end
+  end
+  
+  def create_child(pg_state)
+    db.transaction do
+      child = TraceState.create(:state => build_state(pg_state), :parent => self, :tree_depth => self.tree_depth+1)
+      child.save
+      return child
+    end
+  end
+
+  def parent_at_depth(d)
+    if self.tree_depth < d then
+      raise "can't get deeper parent"
+    end
+    walker = self
+    while walker.tree_depth > d do
+      walker = walker.parent
+    end
+    return walker
+  end
 end
 
 class MappingBlock < Sequel::Model(:memory_mapping_blocks)
@@ -80,7 +150,7 @@ class MappingBlock < Sequel::Model(:memory_mapping_blocks)
 
   def pageInfo
     header.unpack("Q<*")[4]
-  end  
+  end
 end
 
 class Flag < Sequel::Model
@@ -90,5 +160,8 @@ class Flag < Sequel::Model
 
   def position=(pos)
     self.actual_position = [pos].pack("Q<")
+    parts = [pos].pack("Q<").unpack("L<L<")
+    self.mostsig_pos = parts[1]
+    self.leastsig_pos = parts[0]
   end
 end

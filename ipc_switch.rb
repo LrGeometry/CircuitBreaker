@@ -53,8 +53,18 @@ module IPC
         BufferDescriptorW.unpack(io)
       end
 
-      io.read((((io.pos-origin)/16.0).ceil*16.0)-io.pos) # padding
-      v_data = io.read((dataSize*4) - io.pos) # dataSize is in words counts everything before the payload, too
+      padding = (((io.pos-origin)/16.0).ceil*16.0)-(io.pos-origin)
+      if padding == 0 then
+        padding = 16 # ???
+      end
+      io.read(padding)
+
+      if cDescriptor > 0 then
+        raise "c descriptors unsupported"
+      end
+      
+      #v_data = io.read((dataSize*4) - (io.pos-origin)) # dataSize is in words counts everything before the payload, too
+      v_data = io.read(origin+0x100-io.pos)
 
       v_cDescriptor = cDescriptor > 0 ? BufferDescriptorC.unpack(io) : nil
 
@@ -218,6 +228,9 @@ module IPC
       num_handles      = header >> 5 & 0x0F
       b_words = io.read(num_b_words * 4).unpack("L<*")
       handles = io.read(num_handles * 4).unpack("L<*")
+      if send_current_pid then
+        io.read(4)
+      end
       return HandleDescriptor.new(send_current_pid, handles, b_words)
     end
 

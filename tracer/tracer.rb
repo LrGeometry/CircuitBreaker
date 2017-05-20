@@ -3,8 +3,11 @@ require "unicorn/arm64_const"
 require "crabstone"
 require "sequel"
 require "pry"
+require "fiber"
 
-require_relative "dsl.rb"
+require_relative "./dsl.rb"
+require_relative "./debugger_dsl.rb"
+require_relative "./kernel_hle.rb"
 
 module Tracer
   RETURN_VECTOR = 0x0000DEADBEEF000000
@@ -14,37 +17,209 @@ module Tracer
   class ProgramState
     def initialize(db)
       @memory_mapping = {}
+      @instructions_until_break = -1
+      @pc = 0
       @uc = Unicorn::Uc.new Unicorn::UC_ARCH_ARM64, Unicorn::UC_MODE_ARM
       @db = db
-
+      @alloc = Allocator.new(self)
       @cs = Crabstone::Disassembler.new(Crabstone::ARCH_ARM64, Crabstone::MODE_ARM)
+      @temp_flags = []
+      @stop_reason = nil
+      @kernel_hle = Tracer::HLE::Kernel.new(self)
       
-      @uc.hook_add(Unicorn::UC_HOOK_MEM_WRITE, Proc.new do |uc, addr, size, user_data|
-                     #@trace_state.dirty addr, size
+      @uc.hook_add(Unicorn::UC_HOOK_MEM_WRITE, Proc.new do |uc, access, addr, size, value, user_data|
+                     puts "hooked write"
+                     @trace_state.dirty(self, addr, size)
                    end)
 
       @uc.hook_add(Unicorn::UC_HOOK_CODE, Proc.new do |uc, addr, size, user_data|
+                     @pc = addr
                      if(addr == Tracer::RETURN_VECTOR) then
+                       @stop_reason = :reached_return_vector
+                       @returning = true
                        @uc.emu_stop
+                       next
                      end
+                     if @instructions_until_break == 0 then
+                       @stop_reason = :steps_exhausted
+                       @uc.emu_stop
+                       next
+                     else
+                       if @instructions_until_break > 0 then
+                         @instructions_until_break-= 1
+                       end
+                     end
+                     @trace_state.create_child(self).apply(self)
                      @cs.disasm(uc.mem_read(addr, size), addr).each do |i|
-                       puts addr.to_s(16) + ": " + i.mnemonic + " " + i.op_str
+                       puts @debugger_dsl.show_addr(i.address).rjust(20) + ": " + i.mnemonic + " " + i.op_str
                      end
                    end)
 
+      @uc.hook_add(Unicorn::UC_HOOK_INTR, Proc.new do |uc, value, ud|
+                     syndrome = @uc.reg_read(Unicorn::UC_ARM64_REG_ESR)
+                     ec = syndrome >> 26 # exception class
+                     iss = syndrome & ((1 << 24)-1)
+                     if ec == 0x15 then # SVC instruction execution taken from AArch64
+                       begin
+                         @kernel_hle.invoke_svc(iss)
+                       rescue => e
+                         @stop_reason = :svc_error
+                         @svc_error = e
+                         @uc.emu_stop
+                       end
+                     else
+                       @stop_reason = :unhandled_exception
+                       @exception_syndrome = syndrome
+                       @uc.emu_stop
+                       next
+                     end
+                   end)
+      
+      @uc.mem_map(RETURN_VECTOR, 0x1000, 5)
+      @uc.mem_write(RETURN_VECTOR, [0xd503201f].pack("Q<"))
+      @uc.reg_write(Unicorn::UC_ARM64_REG_SP, Flag[:name => "sp"].position)
+      @uc.reg_write(Unicorn::UC_ARM64_REG_TPIDRRO_EL0, Flag[:name => "tls"].position)
       # enable NEON
       @uc.reg_write(Unicorn::UC_ARM64_REG_CPACR_EL1, 3 << 20)
-      
-      @alloc = Allocator.new(self)
     end
 
+    def x_reg(num)
+      case num
+      when 0..28
+        return Unicorn::UC_ARM64_REG_X0 + num
+      when 29
+        return Unicorn::UC_ARM64_REG_X29
+      when 30
+        return Unicorn::UC_ARM64_REG_X30
+      else
+        raise "invalid register"
+      end
+    end
+    
+    def emu_start(addr, ret)
+      @pc = addr
+      @uc.reg_write(Unicorn::UC_ARM64_REG_PC, @pc)
+      @returning = false
+      Fiber.new do |cmd|
+        while !cmd[:stop] do
+          if cmd[:instruction_count] then
+            @instructions_until_break = cmd[:instruction_count]
+          else
+            @instructions_until_break = -1
+          end
+          @stop_reason = nil
+          @uc.emu_start(@pc, ret)
+          @uc.reg_write(Unicorn::UC_ARM64_REG_PC, @pc)
+          
+          case @stop_reason
+          when :unhandled_exception
+            raise "caught unhandled exception, syndrome 0x#{@exception_syndrome.to_s(16)}"
+          when :svc_error
+            raise @svc_error
+          end
+          
+          if @returning then
+            break
+          end
+          cmd = Fiber.yield
+        end
+      end
+    end
+
+    def add_temp_flag(flag)
+      @temp_flags.push flag
+      @temp_flags.sort! do |a, b|
+        a.position <=> b.position
+      end
+    end
+    
+    def find_flag_by_name(name)
+      @temp_flags.find do |f|
+        f.name == name
+      end || Flag[:name => name.to_s]
+    end
+
+    def find_flag_by_before(pos)
+      tflag_idx = @temp_flags.rindex do |f|
+        f.position <= pos
+      end
+      tflag = tflag_idx != nil ? @temp_flags[tflag_idx] : nil
+      
+      addr_parts = [pos].pack("Q<").unpack("L<L<")
+      dbflag = flag = Flag.where do
+        mostsig_pos <= addr_parts[1]
+      end.where do
+        leastsig_pos <= addr_parts[0]
+      end.order(:mostsig_pos).order_append(:leastsig_pos).last
+
+      if tflag == nil then
+        return dbflag
+      else
+        return [tflag, dbflag].max do |a, b|
+          a.position <=> b.position
+        end
+      end
+    end
+
+    def load_state(target)
+      current = @trace_state
+
+      depth = [current.tree_depth, target.tree_depth].min
+      current_parent = current.parent_at_depth(depth)
+      target_parent = target.parent_at_depth(depth)
+      while current_parent != target_parent do
+        if current_parent.tree_depth != target_parent.tree_depth then
+          raise "tree depth mismatch, is the database ok?"
+        end
+        if current_parent.tree_depth == 0 then
+          raise "no common ancestor"
+        end
+        current_parent = current_parent.parent
+        target_parent = target_parent.parent
+      end
+
+      common_parent = current_parent
+
+      rewind_to_state(common_parent)
+      forward_to_state(target)
+    end
+
+    # preconditions: target is an ancestor of current
+    def rewind_to_state(target)
+      current = @trace_state
+      while current != target do
+        current = current.rewind(self)
+      end
+    end
+
+    # preconditions: current is an ancestor of target
+    def forward_to_state(target)
+      current = @trace_state
+      states = []
+      walker = target
+      while walker != current do
+        states.push(walker)
+        walker = walker.parent
+      end
+      states.reverse!
+      states.each do |state|
+        state.apply(self)
+      end
+    end
+    
     attr_reader :db
     attr_reader :uc
+    attr_reader :cs
     attr_reader :memory_mapping
     attr_reader :alloc
+    attr_reader :pc
+    attr_reader :temp_flags
     attr_accessor :trace_state
+    attr_accessor :debugger_dsl
   end
 
+  TempFlag = Struct.new("TempFlag", :name, :position)
+  
   class Allocator
     def initialize(pg_state)
       @chain = MemoryBlock.new(HEAP_ADDRESS, HEAP_SIZE, nil, nil, nil, nil)
@@ -227,6 +402,7 @@ module Tracer
     db = Sequel.connect(tracedb_path)
     if(!Sequel::Migrator.is_current?(db, "tracer/migrations")) then
       puts "Migrating database..."
+      $db = db
       Sequel::Migrator.run(db, "tracer/migrations")
     end
 
@@ -239,6 +415,7 @@ module Tracer
       db[:trace_states].insert(:id => 0, :parent_id => 0) # force id = 0
       ts = TraceState[0]
       ts.state = 0.chr * 512
+      ts.tree_depth = 0
       
       progressString = ""
       
@@ -322,9 +499,9 @@ module Tracer
     end
     
     puts "Loading trace state 0..."
-    TraceState[0].load_state(pg_state)
+    TraceState[0].apply(pg_state)
     puts "Loaded. Ready to roll."
-
+    
     $dsl = Tracer::DSL.new(pg_state)
     require_relative "../standard_switch.rb"
     return $dsl

@@ -113,7 +113,7 @@ class NumericType < Type
   end
 
   def encode(value)
-    [value].pack(@packing)
+    [value.to_i].pack(@packing)
   end
 
   def decode(switch, string)

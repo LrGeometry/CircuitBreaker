@@ -25,6 +25,14 @@ class FunctionPointer
   end
   
   def call(*args)
+    _call(args, true)
+  end
+
+  def start(*args)
+    _call(args, false)
+  end
+
+  def _call(args, start_immediately)
     if args.length != @argument_types.length then
       raise "argument length mismatch (expected #{@argument_types.length}, got #{args.length}"
     end
@@ -40,7 +48,11 @@ class FunctionPointer
     int_values = (values[:integer] || []).map do |v| v[1] end
     float_values = (values[:float] || []).map do |v| v[1] end
 
-    retV = @switch.call(@pointer, int_values, [], float_values)
+    if start_immediately then
+      retV = @switch.call(@pointer, int_values, [], float_values)
+    else
+      retV = @switch.start(@pointer, int_values, [], float_values)
+    end
     
     finalizers.each do |f|
       f.call
