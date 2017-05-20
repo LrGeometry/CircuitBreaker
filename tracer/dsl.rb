@@ -29,6 +29,7 @@ module Tracer
 
     def write(pointer, offset, data)
       uc.mem_write(pointer.value+offset, data)
+      pg_state.trace_state.dirty(pg_state, pointer.value+offset, data.length)
     end    
     
     def mref(addr)
@@ -94,10 +95,31 @@ module Tracer
       return uc.reg_read(Unicorn::UC_ARM64_REG_X0)
     end
 
-    def new_trace
-      pg_state.trace_state.create_child(pg_state).apply(pg_state)
-    end    
+    def save_state
+      state = pg_state.trace_state.create_child(pg_state)
+      pg_state.load_state(state)
+      return state
+    end
 
+    def load_state(s)
+      current = pg_state.trace_state
+      pg_state.load_state(s)
+      return current
+    end
+
+    def base_state
+      TraceState[0]
+    end
+
+    def current_state
+      pg_state.trace_state
+    end
+    
+    def clean_state
+      pg_state.load_state(pg_state.trace_state)
+      return pg_state.trace_state
+    end
+    
     def temp_flag(name, pos=nil)
       if pos == nil then
         pos = @pg_state.pc

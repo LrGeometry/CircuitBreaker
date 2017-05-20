@@ -8,11 +8,12 @@ require "fiber"
 require_relative "./dsl.rb"
 require_relative "./debugger_dsl.rb"
 require_relative "./kernel_hle.rb"
+require_relative "./allocator.rb"
 
 module Tracer
   RETURN_VECTOR = 0x0000DEADBEEF000000
   HEAP_ADDRESS  = 0x0001DEADBEEF000000
-  HEAP_SIZE = 64 * 1024 * 1024 # 64 MiB
+  HEAP_SIZE = 8 * 1024 * 1024 # 8 MiB
   
   class ProgramState
     def initialize(db)
@@ -21,14 +22,13 @@ module Tracer
       @pc = 0
       @uc = Unicorn::Uc.new Unicorn::UC_ARCH_ARM64, Unicorn::UC_MODE_ARM
       @db = db
-      @alloc = Allocator.new(self)
+      @alloc = Tracer::Allocator.new(self)
       @cs = Crabstone::Disassembler.new(Crabstone::ARCH_ARM64, Crabstone::MODE_ARM)
       @temp_flags = []
       @stop_reason = nil
       @kernel_hle = Tracer::HLE::Kernel.new(self)
       
       @uc.hook_add(Unicorn::UC_HOOK_MEM_WRITE, Proc.new do |uc, access, addr, size, value, user_data|
-                     puts "hooked write"
                      @trace_state.dirty(self, addr, size)
                    end)
 
@@ -49,7 +49,7 @@ module Tracer
                          @instructions_until_break-= 1
                        end
                      end
-                     @trace_state.create_child(self).apply(self)
+                     #@trace_state.create_child(self).apply(self)
                      @cs.disasm(uc.mem_read(addr, size), addr).each do |i|
                        puts @debugger_dsl.show_addr(i.address).rjust(20) + ": " + i.mnemonic + " " + i.op_str
                      end
@@ -163,7 +163,8 @@ module Tracer
 
     def load_state(target)
       current = @trace_state
-
+      current.reload(self) # reset to known clean state
+      
       depth = [current.tree_depth, target.tree_depth].min
       current_parent = current.parent_at_depth(depth)
       target_parent = target.parent_at_depth(depth)
@@ -219,157 +220,6 @@ module Tracer
   end
 
   TempFlag = Struct.new("TempFlag", :name, :position)
-  
-  class Allocator
-    def initialize(pg_state)
-      @chain = MemoryBlock.new(HEAP_ADDRESS, HEAP_SIZE, nil, nil, nil, nil)
-      @chain.before = @chain
-      @chain.after = @chain
-      @chain.before_free = @chain
-      @chain.after_free = @chain
-      @blockMap = {}
-    end
-
-    attr_accessor :chain
-
-    def malloc(size)
-      block = @chain.allocate(self, @chain, size)
-      @blockMap[block.address] = block
-      return block.address
-    end
-
-    def free(addr)
-      if !@blockMap[addr] then
-        raise "this address is not the start of a block"
-      end
-      @blockMap[addr].free(self)
-      @blockMap.delete addr
-    end
-    
-    class MemoryBlock
-      def initialize(address, size, before, after, before_free, after_free)
-        @address = address
-        @size = size
-        @before = before
-        @after = after
-        @before_free = before_free
-        @after_free = after_free
-        @allocated = false
-      end
-
-      attr_accessor :allocated
-      attr_accessor :before
-      attr_accessor :after
-      attr_accessor :before_free
-      attr_accessor :after_free
-      attr_accessor :address
-      attr_accessor :size
-
-      def inspect
-        "0x" + @address.to_s(16).rjust(16, "0") + ", 0x" + @size.to_s(16) + " bytes long"
-      end
-      
-      def coalesce_before(allocator)
-        if @allocated || @before.allocated then
-          raise "cannot coalesce allocated blocks"
-        end
-        if @address < @before.address then
-          raise "cannot coalesce across circular heap boundary"
-        end
-        @address = @before.address
-        @size+= @before.size
-        @before.before.after = self
-        @before.before_free.after_free = self
-        @before.after_free.before_free = self
-        @after_free = @before.after_free
-        if allocator.chain == @before then
-          allocator.chain = self
-        end
-        @before = @before.before
-      end
-
-      def free(allocator)
-        @allocated = false
-        # insert ourselves into the free list
-        walker = @after
-        while walker.allocated do
-          walker = walker.after
-        end
-        @after_free = walker
-        @after_free.before_free = self
-        walker = @before
-        while walker.allocated do
-          walker = walker.before
-        end
-        @before_free = walker
-        @before_free.after_free = self
-
-        if !@before.allocated && @address > @before.address then
-          coalesce_before(allocator)
-        end
-        if !@after.allocated && @address < @after.address then
-          @after.coalesce_before(allocator)
-        end
-      end
-
-      def remove_from_chain(allocator)
-        if allocator.chain == self then
-          allocator.chain = @after
-        end
-        @before.after = @after
-        @after.before = @before
-        if @before_free.after_free == self then
-          @before_free.after_free = @after_free
-        else
-          raise "?"
-        end
-        if @after_free.before_free == self then
-          @after_free.before_free = @before_free
-        else
-          raise "?"
-        end
-      end
-      
-      def allocate(allocator, start, size) # 'start' is to prevent cycles
-        allocator.chain = self
-
-        if @before_free.allocated then
-          raise "@before_free has been allocated, something is horribly wrong"
-        end
-
-        if @after_free.allocated then
-          raise "@after_free has been allocated, something is horribly wrong"
-        end
-
-        if @allocated then
-          raise "I have been allocated, something is horribly wrong"
-        end
-        
-        if @size >= size then
-          # @before_free and @after_free are nilled out so we don't accidentally use them since
-          # we aren't in the free list anymore
-          new_block = MemoryBlock.new(@address, size, @before, self, nil, nil)
-          new_block.allocated = true
-          @address+= size
-          @size-= size
-          @before.after = new_block
-          @before.after_free = self # not really necessary but helpful to understand
-          @before = new_block
-          @before_free.after_free = self
-          if @size == 0 then
-            remove_from_chain
-          end
-          return new_block
-        else
-          if @after_free != start then
-            @after_free.allocate(size)
-          else
-            raise "out of memory"
-          end
-        end
-      end
-    end
-  end
   
   def self.initialize
     if ARGV.length < 2 || ARGV.length > 3 then

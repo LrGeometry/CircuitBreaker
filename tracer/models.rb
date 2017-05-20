@@ -9,11 +9,11 @@ class TracePage < Sequel::Model
     header.unpack("Q<*")[1]
   end
 
-  def apply(pg_state)
+  def apply(pg_state, force=false)
     memory_mapping = pg_state.memory_mapping
-    if(memory_mapping[offset] != self) then
+    if(memory_mapping[offset/SIZE] != self || force) then
       pg_state.uc.mem_write(offset, data)
-      memory_mapping[offset] = self
+      memory_mapping[offset/SIZE] = self
     end
   end
 end
@@ -38,11 +38,10 @@ class TraceState < Sequel::Model
 
   # rewind state to beginning of parent
   def rewind(pg_state)
-    puts "rewinding trace state " + id.to_s
-    if pg_state.trace_state then
-      pg_state.trace_state.finalize(pg_state)
-    end
-
+    reload(pg_state)
+    @dirty_pages||= Array.new
+    @dirty_pages.clear
+    
     previous_pages.each do |page|
       page.apply(pg_state)
     end
@@ -61,11 +60,6 @@ class TraceState < Sequel::Model
   end
   
   def apply(pg_state)
-    puts "applying trace state " + id.to_s
-    if pg_state.trace_state then
-      pg_state.trace_state.finalize(pg_state)
-    end
-
     trace_pages.each do |page|
       page.apply(pg_state)
     end
@@ -75,45 +69,49 @@ class TraceState < Sequel::Model
     @dirty_pages.clear
     
     pg_state.trace_state = self
-  end  
+  end
+
+  # discard all modifications made since this state was saved
+  def reload(pg_state)
+    if pg_state.trace_state != self then
+      raise "cannot reload to different trace state"
+    end
+    @dirty_pages.each do |page|
+      page.apply(pg_state, true)
+    end
+    @dirty_pages.clear
+    apply_registers(pg_state)
+  end
 
   def build_state(pg_state)
     31.times.map do |i|
       pg_state.uc.reg_read(pg_state.x_reg(i))
     end.pack("Q<*")
   end
-  
-  def finalize(pg_state)
-    puts "finalizing trace state " + id.to_s
-    uc = pg_state.uc
-
-    Sequel::Model.db.transaction do
-      state = build_state(pg_state)
-
-      @dirty_pages.each do |p|
-        add_previous_page(p)
-        new_page = TracePage.create(:header => p.header, :data => uc.mem_read(p.offset, p.size))
-        add_trace_page(new_page)
-        new_page.apply(pg_state)
-      end
-    end
-    @dirty_pages.clear
-  end
-  
+    
   def dirty(pg_state, addr, size)
     walk = (addr/TracePage::SIZE).floor*TracePage::SIZE
     while walk < addr + size do
-      page = pg_state.memory_mapping[walk]
+      page = pg_state.memory_mapping[walk/TracePage::SIZE]
       if !@dirty_pages.include? page then
         @dirty_pages.push page
       end
       walk+= TracePage::SIZE
     end
   end
-  
+
+  # saves all modifications into new state
   def create_child(pg_state)
     db.transaction do
       child = TraceState.create(:state => build_state(pg_state), :parent => self, :tree_depth => self.tree_depth+1)
+      
+      uc = pg_state.uc
+      @dirty_pages.each do |p|
+        child.add_previous_page(p)
+        new_page = TracePage.create(:header => p.header, :data => uc.mem_read(p.offset, p.size))
+        child.add_trace_page(new_page)
+      end
+      
       child.save
       return child
     end
