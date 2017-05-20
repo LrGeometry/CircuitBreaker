@@ -147,6 +147,10 @@ class Pointer
     self[0]
   end
   
+  def deref=(num)
+    self[0] = num
+  end
+  
   # create function pointer
   def bridge(return_type, *argument_types)
     return FunctionPointer.new(@switch, self, return_type, argument_types)
