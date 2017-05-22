@@ -56,7 +56,7 @@ module Tracer
                    end)
 
       @uc.hook_add(Unicorn::UC_HOOK_INTR, Proc.new do |uc, value, ud|
-                     syndrome = @uc.reg_read(Unicorn::UC_ARM64_REG_ESR)
+                     syndrome = @uc.query(Unicorn::UC_QUERY_EXCEPTION_SYNDROME)
                      ec = syndrome >> 26 # exception class
                      iss = syndrome & ((1 << 24)-1)
                      if ec == 0x15 then # SVC instruction execution taken from AArch64
