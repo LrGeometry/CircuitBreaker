@@ -135,6 +135,12 @@ class TraceState < Sequel::Model
     end
   end
 
+  def before_destroy
+    trace_pages.each do |tp|
+      tp.destroy
+    end
+  end
+  
   def parent_at_depth(d)
     if self.tree_depth < d then
       raise "can't get deeper parent"

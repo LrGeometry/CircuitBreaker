@@ -9,6 +9,7 @@ gem "websocket-eventmachine-server"
 gem "pry"
 gem "rspec"
 gem "em-http-server"
+gem "curses"
 
 group :tracer do
   gem "sequel"

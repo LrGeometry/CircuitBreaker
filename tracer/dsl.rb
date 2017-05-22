@@ -52,6 +52,10 @@ module Tracer
       end
       begin
         yield dsl, dsl.bind
+        if fiber.alive? then
+          fiber.resume({:stop => true})
+          raise "quit debugger during execution"
+        end
       ensure
         @pg_state.debugger_dsl = nil
         dsl.bind.local_variables.each do |var|
@@ -68,12 +72,9 @@ module Tracer
       fiber = @pg_state.emu_start(func_ptr.value, Tracer::RETURN_VECTOR + 4)
       _enter_debugger(fiber) do |debugger, bind|
         response = fiber.resume({})
-        if fiber.alive? then
+        if response != :reached_return_vector then
           debugger.show_state
           Pry.start(bind, DEBUGGER_PRY_OPTIONS)
-        end
-        if fiber.alive? then
-          raise "quit debugger during execution"
         end
       end
       return uc.reg_read(Unicorn::UC_ARM64_REG_X0)
@@ -88,9 +89,6 @@ module Tracer
       _enter_debugger(fiber) do |debugger, bind|
         debugger.show_state
         Pry.start(bind, DEBUGGER_PRY_OPTIONS)
-        if fiber.alive? then
-          raise "quit debugger during execution"
-        end
       end
       return uc.reg_read(Unicorn::UC_ARM64_REG_X0)
     end

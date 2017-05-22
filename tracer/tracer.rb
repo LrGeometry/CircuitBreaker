@@ -34,9 +34,15 @@ module Tracer
 
       @uc.hook_add(Unicorn::UC_HOOK_CODE, Proc.new do |uc, addr, size, user_data|
                      @pc = addr
+                     was_first_instruction = @is_first_instruction
+                     @is_first_instruction = false
                      if(addr == Tracer::RETURN_VECTOR) then
                        @stop_reason = :reached_return_vector
-                       @returning = true
+                       @uc.emu_stop
+                       next
+                     end
+                     if(addr == @break_at && !was_first_instruction) then
+                       @stop_reason = :reached_explicit_breakpoint
                        @uc.emu_stop
                        next
                      end
@@ -50,9 +56,9 @@ module Tracer
                        end
                      end
                      #@trace_state.create_child(self).apply(self)
-                     @cs.disasm(uc.mem_read(addr, size), addr).each do |i|
-                       puts @debugger_dsl.show_addr(i.address).rjust(20) + ": " + i.mnemonic + " " + i.op_str
-                     end
+                     #@cs.disasm(uc.mem_read(addr, size), addr).each do |i|
+                     #  puts @debugger_dsl.show_addr(i.address).rjust(20) + ": " + i.mnemonic + " " + i.op_str
+                     #end
                      @instruction_count+= 1
                    end)
 
@@ -100,7 +106,6 @@ module Tracer
     def emu_start(addr, ret)
       @pc = addr
       @uc.reg_write(Unicorn::UC_ARM64_REG_PC, @pc)
-      @returning = false
       Fiber.new do |cmd|
         while !cmd[:stop] do
           if cmd[:instruction_count] then
@@ -108,7 +113,12 @@ module Tracer
           else
             @instructions_until_break = -1
           end
+          @break_at = ret
+          if cmd[:break_at] then
+            @break_at = cmd[:break_at]
+          end
           @stop_reason = nil
+          @is_first_instruction = true
           @uc.emu_start(@pc, ret)
           @uc.reg_write(Unicorn::UC_ARM64_REG_PC, @pc)
           
@@ -118,11 +128,7 @@ module Tracer
           when :svc_error
             raise @svc_error
           end
-          
-          if @returning then
-            break
-          end
-          cmd = Fiber.yield
+          cmd = Fiber.yield @stop_reason
         end
       end
     end

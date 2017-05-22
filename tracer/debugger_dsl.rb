@@ -5,16 +5,52 @@ module Tracer
       @fiber = fiber
       @state = self.save_state
       @registers_dsl = RegistersDSL.new(pg_state)
+      @visual_active = false
       self.load_state(@state)
     end
 
-    def rewind(num)
+    def visual
+      require_relative "visual.rb"
+      @visual_active = true
+      begin
+        (@visual_mode||= Visual::VisualMode.new(@pg_state, self)).open
+      ensure
+        @visual_active = false
+      end
+    end
+    
+    def rewind(num=1)
       target_count = pg_state.instruction_count - num
       if(target_count < @state.instruction_count) then
         raise "can't rewind that far!"
       end
       self.load_state(@state)
       self.step(target_count - pg_state.instruction_count)
+    end
+
+    def rewind_to(addr)
+      count = pg_state.instruction_count
+      self.load_state(@state)
+      if(pg_state.pc == addr) then
+        return
+      end
+      
+      ultimate_state = nil
+      while pg_state.instruction_count < count do
+        self.step_to(addr, true)
+        if pg_state.instruction_count >= count then
+          break
+        end
+        if ultimate_state then
+          ultimate_state.destroy
+        end
+        ultimate_state = @state.create_child(pg_state)
+      end
+      if !ultimate_state then
+        raise "target never hit"
+      end
+      self.load_state(ultimate_state)
+      show_state
     end
     
     def show_addr(addr)
@@ -27,6 +63,10 @@ module Tracer
     end
     
     def show_state
+      if @visual_active then
+        return
+      end
+      
       puts
       (0..30).each.map do |r_num|
         reg_id = Unicorn::UC_ARM64_REG_X0 + r_num
@@ -69,12 +109,19 @@ module Tracer
       show_state
     end
 
+    def step_to(addr, inhibit_show_state=false)
+      reason = @fiber.resume({:break_at => addr})
+      if !inhibit_show_state then
+        show_state
+      end
+    end
+
     def continue
       @fiber.resume({:instruction_count => -1})
     end
     
     def pc
-      @dsl.make_pointer(@pg_state.pc)
+      make_pointer(@pg_state.pc)
     end
 
     (0..28).each do |num|
