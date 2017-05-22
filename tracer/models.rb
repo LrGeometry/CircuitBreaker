@@ -46,17 +46,26 @@ class TraceState < Sequel::Model
       page.apply(pg_state)
     end
     parent = self.parent
-    parent.apply_registers(pg_state)
+    parent.apply_state(pg_state)
     
     pg_state.trace_state = self.parent
   end
 
-  def apply_registers(pg_state)
-    fields = state.unpack("Q<*")
+  def apply_state(pg_state)
+    fields = state.unpack("Q<*").each
     uc = pg_state.uc
     31.times do |i|
-      uc.reg_write(pg_state.x_reg(i), fields[i] || 0)
+      uc.reg_write(pg_state.x_reg(i), fields.next || 0)
     end
+    (Unicorn::UC_ARM64_REG_Q0..Unicorn::UC_ARM64_REG_Q31).each do |reg|
+      low = fields.next
+      high = fields.next
+      uc.reg_write(reg, [low, high])
+    end
+    uc.reg_write(Unicorn::UC_ARM64_REG_NZCV, fields.next)
+    uc.reg_write(Unicorn::UC_ARM64_REG_SP, fields.next)
+    pg_state.pc = fields.next
+    pg_state.instruction_count = self.instruction_count
   end
   
   def apply(pg_state)
@@ -64,7 +73,7 @@ class TraceState < Sequel::Model
       page.apply(pg_state)
     end
 
-    apply_registers(pg_state)
+    apply_state(pg_state)
     @dirty_pages||= Array.new
     @dirty_pages.clear
     
@@ -80,13 +89,22 @@ class TraceState < Sequel::Model
       page.apply(pg_state, true)
     end
     @dirty_pages.clear
-    apply_registers(pg_state)
+    apply_state(pg_state)
   end
 
   def build_state(pg_state)
-    31.times.map do |i|
+    x_regs = 31.times.map do |i|
       pg_state.uc.reg_read(pg_state.x_reg(i))
     end.pack("Q<*")
+    float_regs = (Unicorn::UC_ARM64_REG_Q0..Unicorn::UC_ARM64_REG_Q31).each.map do |reg|
+      pg_state.uc.reg_read(reg).pack("Q<Q<")
+    end.join()
+    misc_regs = [
+      pg_state.uc.reg_read(Unicorn::UC_ARM64_REG_NZCV),
+      pg_state.uc.reg_read(Unicorn::UC_ARM64_REG_SP),
+      pg_state.pc
+    ].pack("Q<*")
+    return x_regs + float_regs + misc_regs
   end
     
   def dirty(pg_state, addr, size)

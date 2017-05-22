@@ -213,8 +213,8 @@ module Tracer
     attr_reader :cs
     attr_reader :memory_mapping
     attr_reader :alloc
-    attr_reader :pc
     attr_reader :temp_flags
+    attr_accessor :pc
     attr_accessor :trace_state
     attr_accessor :debugger_dsl
   end
@@ -264,7 +264,7 @@ module Tracer
       STDOUT.print "Creating trace state 0 and mapping blocks... "
       db[:trace_states].insert(:id => 0, :parent_id => 0) # force id = 0
       ts = TraceState[0]
-      ts.state = 0.chr * 512
+      ts.state = 0.chr * ((31 + (32*2) + 3) * 8)
       ts.tree_depth = 0
       
       progressString = ""
