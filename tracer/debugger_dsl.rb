@@ -3,9 +3,20 @@ module Tracer
     def initialize(pg_state, fiber)
       super(pg_state)
       @fiber = fiber
+      @state = self.save_state
       @registers_dsl = RegistersDSL.new(pg_state)
+      self.load_state(@state)
     end
 
+    def rewind(num)
+      target_count = pg_state.instruction_count - num
+      if(target_count < @state.instruction_count) then
+        raise "can't rewind that far!"
+      end
+      self.load_state(@state)
+      self.step(target_count - pg_state.instruction_count)
+    end
+    
     def show_addr(addr)
       flag = @pg_state.find_flag_by_before(addr)
       if(flag && (addr-flag.position) < 0x400) then

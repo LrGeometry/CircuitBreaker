@@ -53,6 +53,7 @@ module Tracer
                      @cs.disasm(uc.mem_read(addr, size), addr).each do |i|
                        puts @debugger_dsl.show_addr(i.address).rjust(20) + ": " + i.mnemonic + " " + i.op_str
                      end
+                     @instruction_count+= 1
                    end)
 
       @uc.hook_add(Unicorn::UC_HOOK_INTR, Proc.new do |uc, value, ud|
@@ -217,6 +218,7 @@ module Tracer
     attr_accessor :pc
     attr_accessor :trace_state
     attr_accessor :debugger_dsl
+    attr_accessor :instruction_count
   end
 
   TempFlag = Struct.new("TempFlag", :name, :position)
@@ -266,6 +268,7 @@ module Tracer
       ts = TraceState[0]
       ts.state = 0.chr * ((31 + (32*2) + 3) * 8)
       ts.tree_depth = 0
+      ts.instruction_count = 0
       
       progressString = ""
       

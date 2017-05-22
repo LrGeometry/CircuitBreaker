@@ -121,7 +121,7 @@ class TraceState < Sequel::Model
   # saves all modifications into new state
   def create_child(pg_state)
     db.transaction do
-      child = TraceState.create(:state => build_state(pg_state), :parent => self, :tree_depth => self.tree_depth+1)
+      child = TraceState.create(:state => build_state(pg_state), :parent => self, :tree_depth => self.tree_depth+1, :instruction_count => pg_state.instruction_count)
       
       uc = pg_state.uc
       @dirty_pages.each do |p|
