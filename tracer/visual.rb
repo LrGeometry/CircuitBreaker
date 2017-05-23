@@ -155,16 +155,33 @@ module Tracer
         @window.attron(Curses::color_pair(ColorPairs::Border))
         @window.addstr("Disassembler".ljust(@width))
         @window.attroff(Curses::color_pair(ColorPairs::Border))
+
+        lines = []
         
         (@height-1).times do |i|
-          @window.setpos(i+1, 0)
           addr = @start + (i*4)
           i = @pg_state.cs.disasm(@pg_state.uc.mem_read(addr, 4), addr).each.next
-          if addr == @pg_state.pc then
+
+          addr_parts = [addr].pack("Q<").unpack("L<L<")
+          flags = Flag.where(:mostsig_pos => addr_parts[1], :leastsig_pos => addr_parts[0]).all
+          if flags.length > 0 then
+            lines.push [nil, ""]
+          end
+          flags.each do |f|
+            lines.push [nil, "      " + f.name + ":"]
+          end
+          
+          markings = "    "          
+          lines.push([addr, (markings + (@cursor == addr ? " => " : "    ") + i.mnemonic.to_s + " " + i.op_str.to_s).ljust(@width)])
+        end
+
+        lines.each_with_index do |line, i|
+          @window.setpos(i+1, 0)
+          if line[0] == @pg_state.pc then
             @window.attron(Curses::color_pair(ColorPairs::PC))
           end
-          markings = "    "
-          @window.addstr((markings + (@cursor == addr ? " => " : "    ") + i.mnemonic.to_s + " " + i.op_str.to_s).ljust(@width))
+
+          @window.addstr(line[1])
           @window.clrtoeol
           @window.attroff(Curses::color_pair(ColorPairs::PC))
         end
