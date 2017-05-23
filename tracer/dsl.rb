@@ -68,6 +68,7 @@ module Tracer
       int_args.each_with_index do |arg, i|
         uc.reg_write(Unicorn::UC_ARM64_REG_X0 + i, arg)
       end
+      uc.reg_write(Unicorn::UC_ARM64_REG_SP, sp.to_i)
       uc.reg_write(Unicorn::UC_ARM64_REG_LR, Tracer::RETURN_VECTOR)
       fiber = @pg_state.emu_start(func_ptr.value, Tracer::RETURN_VECTOR + 4)
       _enter_debugger(fiber) do |debugger, bind|
@@ -84,6 +85,7 @@ module Tracer
       int_args.each_with_index do |arg, i|
         uc.reg_write(Unicorn::UC_ARM64_REG_X0 + i, arg)
       end
+      uc.reg_write(Unicorn::UC_ARM64_REG_SP, sp.to_i)
       uc.reg_write(Unicorn::UC_ARM64_REG_LR, Tracer::RETURN_VECTOR)
       fiber = @pg_state.emu_start(func_ptr.value, Tracer::RETURN_VECTOR + 4)
       _enter_debugger(fiber) do |debugger, bind|
