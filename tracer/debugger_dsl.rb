@@ -10,7 +10,7 @@ module Tracer
     end
 
     def visual
-      require_relative "visual.rb"
+      require_relative "visual/visual.rb"
       @visual_active = true
       begin
         (@visual_mode||= Visual::VisualMode.new(@pg_state, self)).open

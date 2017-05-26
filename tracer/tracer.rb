@@ -7,7 +7,7 @@ require "fiber"
 
 require_relative "./dsl.rb"
 require_relative "./debugger_dsl.rb"
-require_relative "./kernel_hle.rb"
+require_relative "./hle/kernel.rb"
 require_relative "./allocator.rb"
 
 module Tracer
