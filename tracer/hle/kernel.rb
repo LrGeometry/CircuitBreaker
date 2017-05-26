@@ -1,4 +1,4 @@
-require_relative "../ipc_switch.rb"
+require_relative "../../ipc_switch.rb"
 
 require_relative "service_manager.rb"
 
