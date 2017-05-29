@@ -10,10 +10,17 @@ class TracePage < Sequel::Model
   end
 
   def apply(pg_state, force=false)
+    if data.length != size then
+      raise "trace page size mismatch"
+    end
     memory_mapping = pg_state.memory_mapping
-    if(memory_mapping[offset/SIZE] != self || force) then
-      pg_state.uc.mem_write(offset, data)
-      memory_mapping[offset/SIZE] = self
+    walk = (offset/SIZE).floor*SIZE
+    pg_state.uc.mem_write(offset, data)
+    while (walk-offset) < size do
+      if(memory_mapping[walk/SIZE] != self || force) then
+        memory_mapping[walk/SIZE] = self
+      end
+      walk+= SIZE
     end
   end
 end
@@ -111,6 +118,10 @@ class TraceState < Sequel::Model
     walk = (addr/TracePage::SIZE).floor*TracePage::SIZE
     while walk < addr + size do
       page = pg_state.memory_mapping[walk/TracePage::SIZE]
+      if page == nil then
+        puts "page is nil"
+        binding.pry
+      end
       if !@dirty_pages.include? page then
         @dirty_pages.push page
       end

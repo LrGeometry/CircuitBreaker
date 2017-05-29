@@ -55,10 +55,6 @@ module Tracer
                          @instructions_until_break-= 1
                        end
                      end
-                     #@trace_state.create_child(self).apply(self)
-                     #@cs.disasm(uc.mem_read(addr, size), addr).each do |i|
-                     #  puts @debugger_dsl.show_addr(i.address).rjust(20) + ": " + i.mnemonic + " " + i.op_str
-                     #end
                      @instruction_count+= 1
                    end)
 
@@ -122,12 +118,6 @@ module Tracer
           @uc.emu_start(@pc, ret)
           @uc.reg_write(Unicorn::UC_ARM64_REG_PC, @pc)
           
-          case @stop_reason
-          when :unhandled_exception
-            raise "caught unhandled exception, syndrome 0x#{@exception_syndrome.to_s(16)}"
-          when :svc_error
-            raise @svc_error
-          end
           cmd = Fiber.yield @stop_reason
         end
       end
@@ -295,7 +285,7 @@ module Tracer
             File.open(File.join(dump_path, "..", fname), "rb") do |block|
               i = 0
               while i < size do
-                pageSize = (perms & 2 > 1) ? [size-i, TracePage::SIZE].min : size
+                pageSize = (perms & 2 > 0) ? [size-i, TracePage::SIZE].min : size-i
                 page = TracePage.create(:header => [offset+i, pageSize].pack("Q<*"),
                                         :data => block.read(pageSize))
                 i+= pageSize
