@@ -11,6 +11,7 @@ GEM
     faye-websocket (0.10.7)
       eventmachine (>= 0.12.0)
       websocket-driver (>= 0.5.1)
+    hexdump (0.2.3)
     method_source (0.8.2)
     mustermann (1.0.0)
     pry (0.10.4)
@@ -66,6 +67,7 @@ DEPENDENCIES
   curses
   em-http-server
   faye-websocket
+  hexdump
   pry
   rack
   rspec
@@ -77,4 +79,4 @@ DEPENDENCIES
   websocket-eventmachine-server
 
 BUNDLED WITH
-   1.14.6
+   1.15.0
