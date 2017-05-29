@@ -44,10 +44,10 @@ module IPC
         BufferDescriptorX.unpack(io)
       end
       v_aDescriptors = numADescriptors.times.map do |_|
-        BufferDescriptorA.unpack(io)
+        BufferDescriptorAB.unpack(io)
       end
       v_bDescriptors = numBDescriptors.times.map do |_|
-        BufferDescriptorB.unpack(io)
+        BufferDescriptorAB.unpack(io)
       end
       v_wDescriptors = numWDescriptors.times.map do |_|
         BufferDescriptorW.unpack(io)
@@ -268,7 +268,11 @@ module IPC
     end
 
     def self.unpack(io)
-      io.read(3)
+      words = io.read(12).unpack("L<L<L<")
+      addr = words[1] | (((words[2] >> 28) & 0xF) << 32) | (((words[2] >> 2) & 0x7) << 36)
+      size = words[0] | (((words[2] >> 24) & 0xF) << 32)
+      perm = words[1] & 3
+      return BufferDescriptorAB.new(addr, size, perm)
     end
   end
 
