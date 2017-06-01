@@ -43,6 +43,7 @@ module Tracer
       end
 
       def handle_key(key)
+        follow = @cursor == @pg_state.pc
         case key
         when "s"
           @debugger_dsl.step
@@ -57,12 +58,15 @@ module Tracer
           @debugger_dsl.rewind_to @cursor
           @visual.state_change
         when Curses::KEY_UP
+          follow = false
           @cursor-= 4
           self.cursor_moved
         when Curses::KEY_DOWN
+          follow = false
           @cursor+= 4
           self.cursor_moved
         when "p"
+          follow = false
           @cursor = @pg_state.pc
           self.cursor_moved
         when "P"
@@ -81,6 +85,10 @@ module Tracer
           @visual.minibuffer_panel.edit_comment(comment)
         else
           return false
+        end
+        if follow then
+          @cursor = @pg_state.pc
+          self.cursor_moved
         end
         return true
       end
