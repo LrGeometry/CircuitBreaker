@@ -85,6 +85,15 @@ module Tracer
             comment = Comment.create(:mostsig_pos => parts[1], :leastsig_pos => parts[0], :content => "")
           end
           @visual.minibuffer_panel.edit_comment(comment)
+        when "f"
+          parts = [@cursor].pack("Q<").unpack("L<L<")
+          flag = Flag[:mostsig_pos => parts[1], :leastsig_pos => parts[0]]
+          if flag == nil then
+            flag = Flag.new
+            flag.content = "lbl." + @cursor.to_s(16)
+            flag.position = @cursor
+          end
+          @visual.minibuffer_panel.edit_flag(flag)
         else
           return false
         end

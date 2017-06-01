@@ -38,6 +38,23 @@ module Tracer
           @visual.disassembly_panel.refresh
         end
       end
+      
+      def edit_flag(flag)
+        last_panel = @visual.active_panel
+        self.controller = TextEditorController.new(self, ": ", flag.name) do |content|
+          @visual.active_panel = last_panel
+          self.controller = nil
+          if content != nil then
+            if content == "" then
+              flag.delete
+            else
+              flag.name = content
+              flag.save
+            end
+          end
+          @visual.disassembly_panel.refresh
+        end
+      end
 
       def are_you_sure(message, confirm=["y", "Y"])
         last_panel = @visual.active_panel
