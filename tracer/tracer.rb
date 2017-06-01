@@ -24,6 +24,7 @@ module Tracer
       @db = db
       @alloc = Tracer::Allocator.new(self)
       @cs = Crabstone::Disassembler.new(Crabstone::ARCH_ARM64, Crabstone::MODE_ARM)
+      @cs.decomposer = true
       @temp_flags = []
       @stop_reason = nil
       @kernel_hle = Tracer::HLE::Kernel.new(self)

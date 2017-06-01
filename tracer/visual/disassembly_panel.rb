@@ -127,7 +127,20 @@ module Tracer
           end
           
           markings = "          "
-          lines.push([addr, (markings + i.mnemonic.to_s + " " + i.op_str.to_s), markings.length])
+          insn_str = i.mnemonic.to_s + " " + i.op_str.to_s
+          case i.mnemonic.to_s
+          when "bl"
+            ops = i.operands
+            if ops.length != 1 then
+              raise "bad bl instruction"
+            end
+            parts = [ops[0].value].pack("Q<").unpack("L<L<")
+            flag = Flag[:mostsig_pos => parts[1], :leastsig_pos => parts[0]]
+            if flag then
+              insn_str = "bl " + flag.name
+            end
+          end
+          lines.push([addr, (markings + insn_str), markings.length])
         end
 
         comment_col = lines.map do |line|
