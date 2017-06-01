@@ -1,5 +1,4 @@
 require "curses"
-require "rainbow"
 
 require_relative "bsp_layout.rb"
 require_relative "disassembly_panel.rb"
@@ -27,7 +26,8 @@ module Tracer
       attr_reader :disassembly_panel
       attr_reader :minibuffer_panel
       attr_reader :memviewer_panel
-
+      attr_accessor :active_panel
+      
       def state_change
         @disassembly_panel.refresh
         @memviewer_panel.refresh
@@ -48,7 +48,8 @@ module Tracer
           @minibuffer_panel||= MiniBufferPanel.new(self)
           
           Curses.nonl
-          Curses.cbreak
+          #Curses.cbreak
+          Curses.raw
           Curses.noecho
           
           @running = true
@@ -79,8 +80,10 @@ module Tracer
 
             if(!@active_panel.handle_key(chr)) then
               case chr
-              when "q"
+              when "q", 3
                 @running = false
+              when 26 # ^Z
+                Process.kill("TSTP", Process.pid)
               end
             end
           end

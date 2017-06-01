@@ -198,3 +198,15 @@ class Flag < Sequel::Model
     self.leastsig_pos = parts[0]
   end
 end
+
+class Comment < Sequel::Model
+  def position
+    self.mostsig_pos << 32 | self.leastsig_pos
+  end
+
+  def position=(pos)
+    parts = [pos].pack("Q<").unpack("L<L<")
+    self.mostsig_pos = parts[1]
+    self.leastsig_pos = parts[0]
+  end
+end

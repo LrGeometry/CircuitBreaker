@@ -1,3 +1,5 @@
+require "word_wrap"
+
 module Tracer
   module Visual
     class DisassemblyPanel
@@ -41,18 +43,6 @@ module Tracer
       end
 
       def handle_key(key)
-        @visual.minibuffer_panel.content = ""
-        
-        if @ays then
-          if key == "P" then
-            @pg_state.pc = @cursor
-            @visual.state_change
-            @ays = false
-            return true
-          end
-        end
-        @ays = false
-        
         case key
         when "s"
           @debugger_dsl.step
@@ -76,8 +66,19 @@ module Tracer
           @cursor = @pg_state.pc
           self.cursor_moved
         when "P"
-          @visual.minibuffer_panel.content = "Are you sure? Shift-P to move PC to cursor."
-          @ays = true
+          @visual.minibuffer_panel.are_you_sure("Are you sure? Shift-P to move PC to cursor.", ["P"]) do |result|
+            if result then
+              @pg_state.pc = @cursor
+              @visual.state_change
+            end
+          end
+        when ";"
+          parts = [@cursor].pack("Q<").unpack("L<L<")
+          comment = Comment[:mostsig_pos => parts[1], :leastsig_pos => parts[0]]
+          if comment == nil then
+            comment = Comment.create(:mostsig_pos => parts[1], :leastsig_pos => parts[0], :content => "")
+          end
+          @visual.minibuffer_panel.edit_comment(comment)
         else
           return false
         end
@@ -106,20 +107,38 @@ module Tracer
           end
           
           markings = "          "
-          lines.push([addr, (markings + i.mnemonic.to_s + " " + i.op_str.to_s).ljust(@width)])
-          if @cursor == addr then
-            @curs_y = lines.length
-            @curs_x = markings.length
-          end
+          lines.push([addr, (markings + i.mnemonic.to_s + " " + i.op_str.to_s), markings.length])
         end
 
+        comment_col = lines.map do |line|
+          line[1].length
+        end.max + 1
+
+        lines.each_with_index do |l, i|
+          if l[0] then
+            addr_parts = l.pack("Q<").unpack("L<L<")
+            comment = Comment[:mostsig_pos => addr_parts[1], :leastsig_pos => addr_parts[0]]
+            if comment then
+              parts = WordWrap.ww(comment.content, @width-comment_col-2).split("\n")
+              l[1] = l[1].ljust(comment_col) + "; " + (parts.length > 0 ? parts[0] : comment.content)
+              parts.drop(1).reverse.each do |part|
+                lines.insert(i+1, [nil, (" " * comment_col) + "; " + part])
+              end
+            end
+            if @cursor == l[0] then
+              @curs_y = i+1
+              @curs_x = l[2]
+            end
+          end
+        end
+        
         lines.each_with_index do |line, i|
           @window.setpos(i+1, 0)
           if line[0] == @pg_state.pc then
             @window.attron(Curses::color_pair(ColorPairs::PC))
           end
 
-          @window.addstr(line[1])
+          @window.addstr(line[1].ljust(@width))
           @window.clrtoeol
           @window.attroff(Curses::color_pair(ColorPairs::PC))
         end

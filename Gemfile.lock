@@ -59,6 +59,7 @@ GEM
       websocket-eventmachine-base (~> 1.0)
     websocket-extensions (0.1.2)
     websocket-native (1.0.0)
+    word_wrap (1.0.0)
 
 PLATFORMS
   ruby
@@ -77,6 +78,7 @@ DEPENDENCIES
   thin
   webrick
   websocket-eventmachine-server
+  word_wrap
 
 BUNDLED WITH
    1.15.0
