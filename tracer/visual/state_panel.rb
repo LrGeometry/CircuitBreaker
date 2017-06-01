@@ -44,10 +44,10 @@ module Tracer
         @window.addstr("State Viewer".ljust(@width))
         @window.attroff(Curses::color_pair(ColorPairs::Border))
         
-        columns = (@width/(max_length+1)).floor
+        columns = [(@width/(max_length+1)).floor, 1].max
         y = 1
         entries.each_slice(columns) do |row|
-          spacing = ((@width - (columns * max_length))/columns).floor
+          spacing = [((@width - (columns * max_length))/columns).floor, 0].max
           @window.setpos(y, 0)
           @window.addstr(row.join(" " * spacing))
           y+= 1

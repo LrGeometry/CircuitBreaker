@@ -68,11 +68,13 @@ module Tracer
                        rescue => e
                          @stop_reason = :svc_error
                          @svc_error = e
+                         @instruction_count-= 1 # we already counted this instruction, but don't actually want to count it since we're breaking
                          @uc.emu_stop
                        end
                      else
                        @stop_reason = :unhandled_exception
                        @exception_syndrome = syndrome
+                       @instruction_count-= 1
                        @uc.emu_stop
                        next
                      end

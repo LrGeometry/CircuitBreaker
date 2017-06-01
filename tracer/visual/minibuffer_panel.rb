@@ -27,13 +27,12 @@ module Tracer
         self.controller = TextEditorController.new(self, "; ", comment.content) do |content|
           @visual.active_panel = last_panel
           self.controller = nil
-          if content != nil then
-            if content == "" then
-              comment.delete
-            else
-              comment.content = content
-              comment.save
-            end
+          if content != nil && content != "" then
+            comment.content = content
+            comment.save
+          end
+          if comment.content == "" then
+            comment.delete
           end
           @visual.disassembly_panel.refresh
         end
@@ -44,13 +43,12 @@ module Tracer
         self.controller = TextEditorController.new(self, ": ", flag.name) do |content|
           @visual.active_panel = last_panel
           self.controller = nil
-          if content != nil then
-            if content == "" then
-              flag.delete
-            else
-              flag.name = content
-              flag.save
-            end
+          if content != nil && content != "" then
+            flag.name = content
+            flag.save
+          end
+          if flag.content == "" then
+            flag.delete
           end
           @visual.disassembly_panel.refresh
         end

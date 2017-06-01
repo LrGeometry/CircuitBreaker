@@ -53,6 +53,7 @@ module Tracer
           @visual.state_change
         when "F"
           @debugger_dsl.step_to @debugger_dsl.x30
+          @visual.state_change
         when "r"
           @debugger_dsl.rewind 1
           @visual.state_change
@@ -90,7 +91,7 @@ module Tracer
           flag = Flag[:mostsig_pos => parts[1], :leastsig_pos => parts[0]]
           if flag == nil then
             flag = Flag.new
-            flag.content = "lbl." + @cursor.to_s(16)
+            flag.name = "lbl." + @cursor.to_s(16)
             flag.position = @cursor
           end
           @visual.minibuffer_panel.edit_flag(flag)
