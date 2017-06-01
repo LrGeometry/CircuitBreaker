@@ -51,6 +51,8 @@ module Tracer
         when "S"
           @debugger_dsl.step_to @cursor
           @visual.state_change
+        when "F"
+          @debugger_dsl.step_to @debugger_dsl.x30
         when "r"
           @debugger_dsl.rewind 1
           @visual.state_change
