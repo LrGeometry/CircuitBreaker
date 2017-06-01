@@ -95,6 +95,16 @@ module Tracer
             flag.position = @cursor
           end
           @visual.minibuffer_panel.edit_flag(flag)
+        when Curses::KEY_ENTER, 13
+          i = @pg_state.cs.disasm(@pg_state.uc.mem_read(@cursor, 4), @cursor).each.next
+          if i.mnemonic.to_s == "bl" then
+            ops = i.operands
+            if ops.length != 1 then
+              raise "bad bl instruction"
+            end
+            @cursor = ops[0].value
+            self.cursor_moved
+          end
         else
           return false
         end
