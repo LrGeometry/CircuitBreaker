@@ -63,7 +63,8 @@ module Tracer
                      syndrome = @uc.query(Unicorn::UC_QUERY_EXCEPTION_SYNDROME)
                      ec = syndrome >> 26 # exception class
                      iss = syndrome & ((1 << 24)-1)
-                     if ec == 0x15 then # SVC instruction execution taken from AArch64
+                     #                     if ec == 0x15 then # SVC instruction execution taken from AArch64
+                     if false then
                        begin
                          @kernel_hle.invoke_svc(iss)
                        rescue => e

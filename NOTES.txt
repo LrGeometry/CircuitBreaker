@@ -59,3 +59,26 @@ Loads next instruction address into LR and jumps. It is up to the function that 
 ReSwitched #general (April 1, 2017, 8:29 PM) ===============
 <pushret> webkit+0x1A4B10  NvOsDrvIoctl(int dev_handle, int ioctl, uint8* buf, int buflen) is that correct?
 <pushret> those handles are probably the same after reboots considering how unrandom they look: 0x580002/0x580003/0x580004. One less hurdle :smiley:
+
+
+ipc_marshal_write_first_two_bytes:                                               
+    stp w8, w9, [x20]                ; x8 = 4, x9 = 0x0a (write header)
+    add x8, x20, #0x17               ;
+    movz w10, #0x4943, lsl #16       ; load "CI" part into x10
+    and x8, x8, #0xfffffffffffffff0  ; align x8 to 16 bytes, x8 now points at data section
+    mov w9, w21                      ; command ID
+    str x22, [x8, #0x10]             ; payload contents
+ipc_marshal_finalize:
+    movk w10, #0x4653                ; load "SF" part into x10 to complete "SFCI"
+    orr w2, wzr, #0x100              ; x2 = 0x100
+    mov x0, x23                      ; x0 = handle ID
+    mov x1, x20                      ; x1 = IPC command buffer (tls)
+    stp x10, x9, [x8]                ; store SFCI and command ID to buffer
+    bl ipcDispatch
+    
+mref(0x3ad454) is in the middle of the IPC marshaller.
+  x8: pointer to "SFCI"
+  x9: command ID
+  x10: "SFCI"
+  x23: handle ID
+  x22: first 8 bytes of data payload section

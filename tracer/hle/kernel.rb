@@ -39,6 +39,7 @@ module Tracer
 
       def svc_send_sync_request
         handle_id = @pg_state.uc.reg_read(Unicorn::UC_ARM64_REG_X0)
+        binding.pry
         if @handles[handle_id] && @handles[handle_id].type == :session then
           handle = @handles[handle_id]
           buffer = @pg_state.uc.reg_read(Unicorn::UC_ARM64_REG_TPIDRRO_EL0)

@@ -141,19 +141,19 @@ module IPC
     end
 
     def x_descriptor(addr, size, counter)
-      @xDescriptors.push BufferDescriptorX.new(addr, size, counter)
+      @xDescriptors.push BufferDescriptorX.new(addr.to_i, size, counter)
     end
 
-    def a_descriptor(addr, size)
-      @aDescriptors.push BufferDescriptorAB.new(addr, size)
+    def a_descriptor(addr, size, perm)
+      @aDescriptors.push BufferDescriptorAB.new(addr.to_i, size, perm)
     end
 
-    def b_descriptor(addr, size)
-      @bDescriptors.push BufferDescriptorAB.new(addr, size)
+    def b_descriptor(addr, size, perm)
+      @bDescriptors.push BufferDescriptorAB.new(addr.to_i, size, perm)
     end
 
     def w_descriptor(addr, size)
-      @wDescriptors.push BufferDescriptorW.new(addr, size)
+      @wDescriptors.push BufferDescriptorW.new(addr.to_i, size)
     end
 
     def raw_data(data)
@@ -170,7 +170,7 @@ module IPC
     end
 
     def c_descriptor(addr, size)
-      @cDescriptor = BufferDescriptorC.new(addr, size)
+      @cDescriptor = BufferDescriptorC.new(addr.to_i, size)
     end
 
     def handle(handle)
@@ -444,7 +444,22 @@ end
 
 module Services
   class NVDRV_A
-    def initialize
+    def initialize(session)
+      @session = session
+    end
+
+    def Open(device)
+      device_buffer = $dsl.string_buf(device)
+      begin
+        @session.build_and_send do
+          force_length(0x08)  
+          a_descriptor(device_buffer, 10, 0)  
+          data(0)
+        end
+      rescue => e
+        device_buffer.free
+        raise e
+      end
     end
   end
 
