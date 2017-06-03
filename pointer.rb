@@ -111,7 +111,7 @@ class Pointer
   
   def [](i)
     if @targetType.size > 0 then
-      return @targetType.decode(@switch, read(@targetType.size, i * @targetType.size))
+      return @targetType.decode(@switch, read(@targetType.size, (i * @targetType.size) - @targetType.address_point))
     else
       raise "Cannot index void*"
     end
@@ -119,7 +119,7 @@ class Pointer
 
   def []=(i, val)
     if @targetType != nil then
-      write(@targetType.encode(val), i * @targetType.size)
+      write(@targetType.encode(val), (i * @targetType.size) - @targetType.address_point)
     else
       raise "Cannot index void*"
     end
@@ -133,7 +133,7 @@ class Pointer
       if !field then
         raise "No such field in target " + @targetType.inspect
       end
-      return Pointer.new(@switch, @value + field.offset, field.type)
+      return Pointer.new(@switch, @value + field.offset - @targetType.address_point, field.type)
     else
       raise "Not a struct pointer"
     end
@@ -173,7 +173,18 @@ class Pointer
   end
 
   def inspect
-    @targetType.name + "* = 0x" + @value.to_s(16)
+    result = @targetType.name + "* = 0x" + @value.to_s(16)
+    if @targetType == Types::Char && @switch.arb_reads_safe then
+      if @value != 0 then
+        begin
+          str = read(512)
+          if str.include?(0.chr) then
+            result+= " \"" + str.unpack("Z*")[0] + "\""
+          end
+        rescue
+        end
+      end
+    end
   end
 
   def is_null_ptr?

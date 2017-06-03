@@ -72,4 +72,8 @@ class SwitchDSL
   def free(pointer)
     raise "nyi"
   end
+
+  def arb_reads_safe
+    return false
+  end
 end

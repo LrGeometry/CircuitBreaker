@@ -2,10 +2,12 @@ class Type
   def initialize(name, size)
     @name = name
     @size = size
+    @address_point = 0
   end
 
   attr_accessor :name
   attr_reader :size
+  attr_reader :address_point
  
   def is_pointer
     false
@@ -51,6 +53,7 @@ class StructType < Type
     @size = @fields.map do |f|
       f.type.size
     end.inject(:+)
+    @address_point = dsl.get_address_point
     
     @class = Struct.new(@struct_name, *(@fields.map do |f|
                                   f.name
@@ -73,6 +76,7 @@ class StructType < Type
     def initialize
       @fields = []
       @offset = 0
+      @address_point = @offset
     end
     
     def field(type, name)
@@ -80,7 +84,15 @@ class StructType < Type
       @offset+= type.size
     end
 
+    def address_point
+      @address_point = @offset
+    end
+    
     attr_reader :fields
+
+    def get_address_point
+      @address_point
+    end
   end
 
   def doc(indent=0)

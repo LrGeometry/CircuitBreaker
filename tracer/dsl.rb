@@ -159,6 +159,10 @@ module Tracer
         return false
       end
     end
+
+    def arb_reads_safe
+      return true
+    end
   end
 end
 
