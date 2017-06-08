@@ -185,6 +185,7 @@ class Pointer
         end
       end
     end
+    return result
   end
 
   def is_null_ptr?
