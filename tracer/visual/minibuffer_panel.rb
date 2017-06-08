@@ -47,7 +47,7 @@ module Tracer
             flag.name = content
             flag.save
           end
-          if flag.content == "" then
+          if flag.name == "" then
             flag.delete
           end
           @visual.disassembly_panel.refresh
