@@ -249,7 +249,7 @@ module IPC
     attr_accessor :perm
     
     def pack
-      if @addr.bit_length > 38 then
+      if @addr.bit_length > 39 then
         raise "addr too long"
       end
       if @size.bit_length > 35 then
