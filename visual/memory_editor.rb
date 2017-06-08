@@ -11,6 +11,7 @@ module Visual
       @color_mgr.add_color(:pc, Curses::COLOR_GREEN)
       @color_mgr.add_color(:reg, Curses::COLOR_BLUE)
       @color_mgr.add_color(:cursor, Curses::COLOR_RED)
+      @cache = {}
     end
 
     attr_accessor :cursor
@@ -57,9 +58,80 @@ module Visual
     end
 
     def recenter
-      @center = @cursor
+      @center = (@cursor/16).floor * 16
     end
-    
+
+    def show_addrs?
+      @width > 16 * 4
+    end
+
+    # -1: no permission
+    # -2: downloading
+    def get_line(addr)
+      entry = @cache[addr.to_i/0x2000]
+      if entry then
+        entry.get_line(addr)
+      else
+        @@loading_line||= Array.new(16, -2)
+      end
+    end
+
+    class CacheEntry
+      def initialize(addr)
+        @addr = addr
+        @mode = :loading
+      end
+
+      def load(bytes)
+        @bytes = bytes
+        @mode = :loaded
+      end
+
+      def noperm
+        @mode = :noperm
+      end
+      
+      def get_line(addr)
+        case @mode
+        when :loading
+          @@loading_line||= Array.new(16, -2)
+        when :loaded
+          @bytes[addr-@addr, 16].bytes
+        when :noperm
+          @@noperm_line||= Array.new(16, -1)
+        end
+      end
+    end
+
+    def attempt_data_fetch(start, length)
+      finished = false
+      addr = (start.to_i/0x2000)*0x2000
+      while addr < start + length do
+        if !@cache[addr/0x2000] then
+          entry = CacheEntry.new(addr)
+          @cache[addr/0x2000] = entry
+          @memio.permissions(addr) do |perms|
+            if perms & 1 then # if we have READ
+              @memio.read(addr, 0x2000) do |data|
+                entry.load(data)
+                if finished then
+                  self.refresh
+                end
+              end
+            else
+              entry.noperm
+              if finished then
+                self.refresh
+              end
+            end
+          end
+        end
+
+        addr+= 0x2000
+      end
+      finished = true
+    end
+
     def refresh
       @window.clear
       @window.setpos(0, 0)
@@ -71,7 +143,10 @@ module Visual
         h.call
       end.flatten(1)
       
-      start = @center - (@height/2) * 16 # 16 bytes per line
+      start = @center - (@height/2).floor * 16 # 16 bytes per line
+
+      attempt_data_fetch(start, (@height-1)*16)
+      
       (@height-1).times do |i|
         line_start = start + i * 16
         line_end = start + (i+1) * 16
@@ -79,9 +154,19 @@ module Visual
         @window.attroff(Curses::A_UNDERLINE)
         @window.setpos(i+1, 0)
 
-        content = @memio.read_sync(line_start, 16)
-        
-        content.bytes.each_with_index do |b, j|
+        if show_addrs? then
+          @window.addstr(" ")
+          @window.attron(Curses::A_DIM)
+          addr_s = line_start.to_s(16)
+          @window.addstr("0" * (16-addr_s.length))
+          @window.addstr(addr_s + " ")
+          @window.attroff(Curses::A_DIM)
+        end
+
+        content = get_line(line_start)
+        content.each_with_index do |b, j|
+          b_str = b >= 0 ? b.to_s(16) : (b == -1 ? "xx" : "..")
+          
           addr = line_start + j
           space_width = j == 8 ? 2 : 1
           next_space_width = j == 7 ? 2 : 1
@@ -119,7 +204,7 @@ module Visual
 
           color = @color_mgr.get_pair(reg ? :bg : :fg, reg ? reg.color : :bg)
           @window.attron(Curses::color_pair(color))
-          @window.addstr(b.to_s(16).rjust(2, "0"))
+          @window.addstr(b_str.rjust(2, "0"))
           @window.attroff(Curses::color_pair(color))
         end
 
