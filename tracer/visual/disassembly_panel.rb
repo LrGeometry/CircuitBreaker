@@ -38,7 +38,7 @@ module Tracer
         if @cursor < @start + (@height*4*1/3) then
           recenter
         end
-        @visual.memviewer_panel.refresh
+        @visual.memedit_panel.refresh
         refresh
       end
 

@@ -24,13 +24,27 @@ module Tracer
     end
     
     def read(pointer, offset, length, &block)
-      uc.mem_read(pointer.value+offset, length)
+      uc.mem_read(pointer.to_i+offset, length)
     end
 
     def write(pointer, offset, data)
-      uc.mem_write(pointer.value+offset, data)
-      pg_state.trace_state.dirty(pg_state, pointer.value+offset, data.length)
+      uc.mem_write(pointer.to_i+offset, data)
+      pg_state.trace_state.dirty(pg_state, pointer.to_i+offset, data.length)
     end    
+
+    def memory_permissions(pointer)
+      parts = [pointer.to_i].pack("Q<").unpack("L<L<")
+      mb = MappingBlock.where do
+        mostsig_offset <= parts[1]
+      end.where do
+        leastsig_offset <= parts[0]
+      end.where do
+        mostsig_endpos >= parts[1]
+      end.where do
+        leastsig_endpos < parts[0]
+      end.first
+      mb ? mb.perms : 0
+    end
     
     def mref(addr)
       main_addr + addr
