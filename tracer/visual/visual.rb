@@ -1,9 +1,6 @@
-require "curses"
-
-require_relative "disassembly_panel.rb"
-require_relative "minibuffer_panel.rb"
-require_relative "state_panel.rb"
 require_relative "../../visual/visual.rb"
+require_relative "disassembly_panel.rb"
+require_relative "state_panel.rb"
 
 module Tracer
   module Visual
@@ -39,7 +36,6 @@ module Tracer
           Curses.start_color
           Curses.init_pair(ColorPairs::PC, Curses::COLOR_BLACK, Curses::COLOR_GREEN)
           Curses.init_pair(ColorPairs::Border, Curses::COLOR_BLACK, Curses::COLOR_WHITE)
-          Curses.init_pair(67, Curses::COLOR_WHITE, Curses::COLOR_BLACK)
 
           @state_panel||= StatePanel.new(self, @pg_state, @debugger_dsl)
           @disassembly_panel||= DisassemblyPanel.new(self, @pg_state, @debugger_dsl)
@@ -62,7 +58,7 @@ module Tracer
              end
             ], @memio)
           
-          @minibuffer_panel||= MiniBufferPanel.new(self)
+
 
           @memio.open do
             Curses.nonl

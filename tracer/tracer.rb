@@ -64,6 +64,8 @@ module Tracer
                      ec = syndrome >> 26 # exception class
                      iss = syndrome & ((1 << 24)-1)
                      #                     if ec == 0x15 then # SVC instruction execution taken from AArch64
+                     binding.pry
+                     next
                      if false then
                        begin
                          @kernel_hle.invoke_svc(iss)

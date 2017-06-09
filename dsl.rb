@@ -76,4 +76,14 @@ class SwitchDSL
   def arb_reads_safe
     return false
   end
+
+  def hexedit(loc)
+    require_relative "visual/visual.rb"
+    memio = AsynchronousMemoryInterface.new(self)
+    memio.open do
+      Visual::Mode.standalone do |vism|
+        Visual::MemoryEditorPanel.new(loc.to_i, [], memio)
+      end
+    end
+  end
 end
