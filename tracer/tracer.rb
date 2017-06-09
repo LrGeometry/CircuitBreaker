@@ -283,9 +283,10 @@ module Tracer
             state = parts[3].to_i
             perms = parts[4].to_i
             pageInfo = parts[5].to_i
-            
-            MappingBlock.create(:header => [offset, size, state, perms, pageInfo].pack("Q<*"))
-            
+
+            mb = MappingBlock.new
+            mb.init(offset, size, state, perms, pageInfo)
+            mb.save
             File.open(File.join(dump_path, "..", fname), "rb") do |block|
               i = 0
               while i < size do
@@ -321,7 +322,9 @@ module Tracer
       puts "Creating heap..."
       db.transaction do
         addr = HEAP_ADDRESS
-        MappingBlock.create(:header => [addr, HEAP_SIZE, 0xDEADBEEF, 3, 0].pack("Q<*"))
+        mb = MappingBlock.new
+        mb.init(addr, HEAP_SIZE, 0xDEADBEEF, 3, 0)
+        mb.save
         while(addr < HEAP_ADDRESS + HEAP_SIZE) do
           page = TracePage.create(:header => [addr, TracePage::SIZE].pack("Q<*"),
                                   :data => (0.chr * TracePage::SIZE))

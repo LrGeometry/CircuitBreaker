@@ -169,6 +169,16 @@ class MappingBlock < Sequel::Model(:memory_mapping_blocks)
     header.unpack("Q<*")[0]
   end
 
+  def init(offset, size, state, perms, pageInfo)
+    header = [offset, size, state, perms, pageInfo].pack("Q<*")
+    parts = [offset].pack("Q<").unpack("L<L<")
+    mostsig_offset = parts[1]
+    leastsig_offset = parts[0]
+    parts = [offset+size].pack("Q<").unpack("L<L<")
+    mostsig_endpos = parts[1]
+    leastsig_endpos = parts[1]
+  end
+  
   def size
     header.unpack("Q<*")[1]
   end
