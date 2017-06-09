@@ -41,7 +41,7 @@ module Tracer
       end.where do
         mostsig_endpos >= parts[1]
       end.where do
-        leastsig_endpos < parts[0]
+        leastsig_endpos > parts[0]
       end.first
       mb ? mb.perms : 0
     end
