@@ -1,8 +1,11 @@
+require "set"
+
 module Visual
   class MemoryEditorPanel
     PAGE_SIZE = 0x1000
     
-    def initialize(initial_cursor, highlighters, memio)
+    def initialize(vism, initial_cursor, highlighters, memio)
+      @vism = vism
       @window = Curses::Window.new(0, 0, 0, 0)
       @window.keypad = true
       @highlighters = highlighters
@@ -18,6 +21,7 @@ module Visual
                        color_mgr
                      end
       @cache = {}
+      @mod_blocks = Set.new
       @nibble = false
 
       @highlighters.push(
@@ -284,9 +288,9 @@ module Visual
       
       start = @center - (@height/2).floor * 16 # 16 bytes per line
 
-      attempt_data_fetch(start, (@height-1)*16)
+      attempt_data_fetch(start, (@height-2)*16)
       
-      (@height-1).times do |i|
+      (@height-2).times do |i|
         line_start = start + i * 16
         line_end = start + (i+1) * 16
 
@@ -378,6 +382,10 @@ module Visual
         end
       end
 
+      @window.setpos(@height-1, 0)
+      uncommitted = @mod_blocks.map do |en| en.map do |e| e.patch.length end.inject(:+) end.inject(:+)
+      @window.addstr("0x" + @cursor.to_s(16).rjust(16, "0") + ", " + uncommitted.to_s + " uncommitted bytes")
+      
       @window.setpos(
         (@cursor - start)/16 + 1,
         (show_addrs? ? 19 : 1) +
@@ -394,10 +402,14 @@ module Visual
         new = @nibble ? (current & 0xF0) | d : (current & 0x0F) | (d<<4)
         if block.can_write? then
           block.make_edit(@cursor, new)
+          @mod_blocks.add block
           advance_cursor
           self.refresh
+          return
         end
       end
+      @mb_message = @vism.minibuffer_panel.show_message("Memory is write-protected")
+      Curses::beep
     end
 
     def cursor_moved
@@ -416,6 +428,10 @@ module Visual
     def handle_key(key)
       old_cursor = @cursor
       old_nibble = @nibble
+      if @mb_message then
+        @mb_message.close
+        @mb_message = nil
+      end
       case key
       when "n"
         advance_cursor
@@ -428,12 +444,19 @@ module Visual
         end
       when Curses::KEY_RIGHT
         @cursor+= 1
+        @nibble = false
       when Curses::KEY_LEFT
-        @cursor-= 1
+        if @nibble then
+          @nibble = false
+        else
+          @cursor-= 1
+        end
       when Curses::KEY_UP
         @cursor-= 16
+        @nibble = false
       when Curses::KEY_DOWN
         @cursor+= 16
+        @nibble = false
       when "<"
         if @cursor_history_i.length > 0 then
           @cursor_history_i-= 1

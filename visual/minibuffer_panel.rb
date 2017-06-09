@@ -62,6 +62,12 @@ module Visual
       end
     end
 
+    def show_message(message)
+      @controller = MessageController.new(message, self)
+      refresh
+      return @controller
+    end
+    
     def controller=(controller)
       @controller = controller
       if controller != nil then
@@ -75,6 +81,25 @@ module Visual
     end
   end
 
+  class MessageController
+    def initialize(message, minibuffer)
+      @message = message
+      @minibuffer = minibuffer
+    end
+
+    def content
+      @message
+    end
+
+    def cursor
+      @message.length + 1
+    end
+    
+    def close
+      @minibuffer.controller = nil
+    end
+  end
+  
   class AreYouSureController
     def initialize(message, confirm, &result_proc)
       @message = message

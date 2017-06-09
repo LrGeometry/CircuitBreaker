@@ -82,7 +82,7 @@ class SwitchDSL
     memio = AsynchronousMemoryInterface.new(self)
     memio.open do
       Visual::Mode.standalone do |vism|
-        Visual::MemoryEditorPanel.new(loc.to_i, [], memio)
+        Visual::MemoryEditorPanel.new(vism, loc.to_i, [], memio)
       end
     end
   end
