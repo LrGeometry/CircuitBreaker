@@ -19,10 +19,11 @@ module Visual
       end
     end
 
-    attr_accessor :active_panel
-
     def initialize
     end
+    
+    attr_reader :minibuffer_panel
+    attr_accessor :active_panel
     
     def open
       Curses.init_screen
@@ -39,6 +40,7 @@ module Visual
         screen = Curses.stdscr
 
         @minibuffer_panel = MiniBufferPanel.new(self)
+        @active_panel = nil
         @panel = yield self
         @active_panel||= @panel
         

@@ -464,8 +464,8 @@ class SynchronousMemoryInterface
     @dsl = dsl
   end
 
-  def read(addr, size, ud)
-    yield @dsl.read(addr, 0, size), ud
+  def read(addr, size)
+    yield @dsl.read(addr, 0, size)
   end
 
   def read_sync(addr, size)
@@ -474,13 +474,13 @@ class SynchronousMemoryInterface
     end
   end
   
-  def write(addr, value, ud)
+  def write(addr, value)
     @dsl.write(addr, 0, value)
-    yield ud
+    yield
   end
 
-  def permissions(addr, ud)
-    yield @dsl.memory_permissions(addr), ud
+  def permissions(addr)
+    yield @dsl.memory_permissions(addr)
   end
 
   def open
