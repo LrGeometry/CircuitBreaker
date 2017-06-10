@@ -37,6 +37,7 @@ module Tracer
             
             highlight = Visual::MemoryEditorPanel::Highlight
             @memedit_panel||= ::Visual::MemoryEditorPanel.new(
+              self,
               @pg_state.pc,
               [Proc.new do
                  [highlight.new("CUR", @disassembly_panel.cursor, :cursor)]

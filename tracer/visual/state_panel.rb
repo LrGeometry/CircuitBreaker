@@ -1,18 +1,16 @@
 module Tracer
   module Visual
-    class StatePanel
+    class StatePanel < ::Visual::Panel
       def initialize(visual, pg_state, debugger_dsl)
+        super()
         @visual = visual
-        @window = Curses::Window.new(0, 0, 0, 0)
         @pg_state = pg_state
         @debugger_dsl = debugger_dsl
       end
 
-      def redo_layout(miny, minx, maxy, maxx)
-        @window.resize(maxy-miny, maxx-minx)
-        @window.move(miny, minx)
-        @width = maxx-minx
-        @height = maxy-miny
+      def redo_layout(miny, minx, maxy, maxx, parent=nil)
+        super
+        self.refresh
       end
       
       def refresh

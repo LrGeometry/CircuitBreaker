@@ -1,8 +1,9 @@
 require "curses"
 
-require_relative "memory_editor.rb"
+require_relative "panel.rb"
 require_relative "bsp_layout.rb"
 require_relative "minibuffer_panel.rb"
+require_relative "memory_editor.rb"
 
 module Visual
   module ColorPairs

@@ -2,27 +2,23 @@ require "word_wrap"
 
 module Tracer
   module Visual
-    class DisassemblyPanel
+    class DisassemblyPanel < ::Visual::Panel
       def initialize(visual, pg_state, debugger_dsl)
+        super()
         @visual = visual
-        @window = Curses::Window.new(0, 0, 0, 0)
-        @window.keypad = true
         @pg_state = pg_state
         @debugger_dsl = debugger_dsl
         @cursor = pg_state.pc
       end
 
-      def redo_layout(miny, minx, maxy, maxx)
-        @window.resize(maxy-miny, maxx-minx)
-        @window.move(miny, minx)
-        @width = maxx-minx
-        @height = maxy-miny
+      def redo_layout(miny, minx, maxy, maxx, parent=nil)
+        super
         @x = minx
         @y = miny
         self.recenter
+        self.refresh
       end
 
-      attr_reader :window
       attr_reader :cursor
       
       def recenter
@@ -42,6 +38,10 @@ module Tracer
         refresh
       end
 
+      def border_content
+        "-" + @debugger_dsl.show_addr(@cursor)
+      end
+      
       def handle_key(key)
         follow = @cursor == @pg_state.pc
         case key

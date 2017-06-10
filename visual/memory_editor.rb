@@ -1,13 +1,12 @@
 require "set"
 
 module Visual
-  class MemoryEditorPanel
+  class MemoryEditorPanel < Panel
     PAGE_SIZE = 0x1000
     
     def initialize(vism, initial_cursor, highlighters, memio)
+      super()
       @vism = vism
-      @window = Curses::Window.new(0, 0, 0, 0)
-      @window.keypad = true
       @highlighters = highlighters
       @memio = memio
       @cursor = initial_cursor
@@ -37,7 +36,6 @@ module Visual
     end
 
     attr_accessor :cursor
-    attr_reader :window
     
     Highlight = Struct.new("Highlight", :name, :value, :color)
 
@@ -72,12 +70,10 @@ module Visual
       end
     end
     
-    def redo_layout(miny, minx, maxy, maxx)
-      @window.resize(maxy-miny, maxx-minx)
-      @window.move(miny, minx)
-      @width = maxx-minx
-      @height = maxy-miny
+    def redo_layout(miny, minx, maxy, maxx, parent=nil)
+      super
       self.recenter
+      self.refresh
     end
 
     def recenter
@@ -116,16 +112,15 @@ module Visual
         @first_edit = nil
       end
 
-      def load(bytes, can_write)
+      def load(bytes, can_write, perms)
         @bytes = bytes
         @mode = :loaded
         @can_write = can_write
+        @perms = perms
       end
 
-      def noperm
-        @mode = :noperm
-      end
-
+      attr_reader :perms
+      
       def each
         walker = @first_edit
         while walker != nil do
@@ -180,12 +175,16 @@ module Visual
       def can_write?
         @can_write
       end
-      
+
+      def is_loading?
+        @mode == :loading
+      end
+
       def make_edit(addr, value)
         if !@can_write then
           raise "can't write"
         end
-        edit = Edit.new(addr, [value].pack("C"), nil)
+        edit = Edit.new(addr, [value].pack("C"))
         prev = self.select do |e|
           e.base <= addr
         end.last
@@ -197,11 +196,42 @@ module Visual
         end
       end
 
+      def commit_edits(memio)
+        each do |e|
+          memio.write_sync(e.base, e.patch)
+          @bytes = e.apply(@bytes, @addr)
+          @first_edit = e
+          yield e
+        end
+        @first_edit = nil
+      end
+
+      def fetch(memio, panel)
+        memio.permissions(@addr) do |perms|
+          if perms & 1 > 0 then # if we have READ
+            memio.read(@addr, PAGE_SIZE) do |data|
+              @bytes = data
+              @can_write = perms & 2 > 0
+              @perms = perms
+              @mode = :loaded
+              if !block_given? || yield then
+                panel.refresh
+              end
+            end
+          else
+            @mode = :noperm
+            if !block_given? || yield then
+              panel.refresh
+            end
+          end
+        end
+      end
+      
       class Edit
-        def initialize(base, patch, next_edit=nil)
+        def initialize(base, patch)
           @base = base
           @patch = patch
-          @next_edit = next_edit
+          @next_edit = nil
         end
 
         attr_reader :base
@@ -232,7 +262,7 @@ module Visual
         def overlaps?(addr, length)
           return @base+@patch.length > addr && @base < addr+length
         end
-        
+
         def apply(data, addr)
           if @base+@patch.length <= addr || @base >= addr+data.length then
             return data
@@ -252,20 +282,8 @@ module Visual
         if !@cache[addr/PAGE_SIZE] then
           lambda do |entry| # get a new scope because while doesn't make one for us
             @cache[addr/PAGE_SIZE] = entry
-            @memio.permissions(addr) do |perms|
-              if perms & 1 > 0 then # if we have READ
-                @memio.read(addr, PAGE_SIZE) do |data|
-                  entry.load(data, perms & 2 > 0) # if we have WRITE
-                  if finished then
-                    self.refresh
-                  end
-                end
-              else
-                entry.noperm
-                if finished then
-                  self.refresh
-                end
-              end
+            entry.fetch(@memio, self) do
+              finished
             end
           end.call(CacheEntry.new(addr))
         end
@@ -288,9 +306,9 @@ module Visual
       
       start = @center - (@height/2).floor * 16 # 16 bytes per line
 
-      attempt_data_fetch(start, (@height-2)*16)
+      attempt_data_fetch(start, (@height-1)*16)
       
-      (@height-2).times do |i|
+      (@height-1).times do |i|
         line_start = start + i * 16
         line_end = start + (i+1) * 16
 
@@ -381,23 +399,20 @@ module Visual
           @window.attroff(Curses::A_BOLD)
         end
       end
-
-      @window.setpos(@height-1, 0)
-      uncommitted = @mod_blocks.map do |en| en.map do |e| e.patch.length end.inject(:+) end.inject(:+)
-      @window.addstr("0x" + @cursor.to_s(16).rjust(16, "0") + ", " + uncommitted.to_s + " uncommitted bytes")
       
       @window.setpos(
         (@cursor - start)/16 + 1,
         (show_addrs? ? 19 : 1) +
         ((@cursor%16)*3) +
-        ((@cursor%16)>8 ? 1 : 0) +
+        ((@cursor%16)>=8 ? 1 : 0) +
         (@nibble ? 1 : 0))
-      @window.refresh
+
+      super()
     end
 
     def enter_digit(d)
       block = @cache[@cursor/PAGE_SIZE]
-      if block.has_data? then
+      if block && block.has_data? then
         current = block.get_byte(@cursor)
         new = @nibble ? (current & 0xF0) | d : (current & 0x0F) | (d<<4)
         if block.can_write? then
@@ -406,10 +421,22 @@ module Visual
           advance_cursor
           self.refresh
           return
+        else
+          @mb_message = @vism.minibuffer_panel.show_message("Memory is write-protected")
+          Curses::beep
+        end
+      else
+        Curses::beep
+        if block then
+          if block.is_loading?
+            @mb_message = @vism.minibuffer_panel.show_message("Memory is being downloaded")
+          else
+            @mb_message = @vism.minibuffer_panel.show_message("No memory is mapped here")
+          end
+        else
+          @mb_message = @vism.minibuffer_panel.show_message("This is a bug")
         end
       end
-      @mb_message = @vism.minibuffer_panel.show_message("Memory is write-protected")
-      Curses::beep
     end
 
     def cursor_moved
@@ -424,7 +451,7 @@ module Visual
         @nibble = true
       end
     end
-    
+
     def handle_key(key)
       old_cursor = @cursor
       old_nibble = @nibble
@@ -467,6 +494,18 @@ module Visual
           @cursor_history_i+= 1
           @cursor = @cursor_history[@cursor_history_i]
         end
+      when "C"
+        count = get_uncommitted_edits.length
+        msg = @vism.minibuffer_panel.grab_focus(count.to_s + " change" + (count != 1 ? "s" : "") + " remain...")
+        @mod_blocks.each do |en|
+          en.commit_edits(@memio) do |e|
+            count-= 1
+            msg.content = count.to_s + " change" + (count != 1 ? "s" : "") + " remain..."
+          end
+          en.fetch(@memio, self)
+        end
+        @mod_blocks.clear
+        msg.close
       when "a".."f"
         enter_digit(0x0A + key.ord - "a".ord)
       when "0".."9"
@@ -478,6 +517,29 @@ module Visual
         cursor_moved
       end
       return true
+    end
+
+    def get_uncommitted_edits
+      @mod_blocks.map do |en|
+        en.to_a
+      end.flatten
+    end
+    
+    def border_content
+      uncommitted = get_uncommitted_edits.map do |e|
+        e.patch.length
+      end.inject(0, :+)
+      entry = @cache[@cursor/PAGE_SIZE]
+      [
+        "-", # for looks
+        (entry ? [
+                   (entry.perms.to_i & 0b001) > 0 ? "R" : "-",
+                   (entry.perms.to_i & 0b010) > 0 ? "W" : "-",
+                   (entry.perms.to_i & 0b100) > 0 ? "X" : "-"
+                 ].join : "loading").ljust(8, "-"),
+        "0x" + @cursor.to_s(16).rjust(16, "0"),
+        "---",
+        uncommitted.to_s + " uncommitted byte" + (uncommitted != 1 ? "s" : "")].join
     end
   end
 end
@@ -527,6 +589,17 @@ class AsynchronousMemoryInterface
     @io_queue.push({:type => :write, :addr => addr.to_i, :data => data, :block => block})
   end
 
+  def write_sync(addr, data)
+    m = Mutex.new
+    m.synchronize do
+      v = ConditionVariable.new
+      write(addr, data) do
+        v.signal
+      end
+      v.wait(m)
+    end
+  end
+  
   def permissions(addr, &block)
     @io_queue.push({:type => :permissions, :addr => addr.to_i, :block => block})
   end

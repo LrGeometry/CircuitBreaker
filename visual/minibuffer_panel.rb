@@ -8,7 +8,7 @@ module Visual
 
     attr_reader :window
     
-    def redo_layout(miny, minx, maxy, maxx)
+    def redo_layout(miny, minx, maxy, maxx, parent=nil)
       @window.resize(maxy-miny, maxx-minx)
       @window.move(miny, minx)
       @width = maxx-minx
@@ -63,8 +63,20 @@ module Visual
     end
 
     def show_message(message)
-      @controller = MessageController.new(message, self)
+      # don't grab focus
+      @controller = MessageController.new(message, self) do
+        self.controller = nil
+      end
       refresh
+      return @controller
+    end
+
+    def grab_focus(message)
+      last_panel = @visual.active_panel
+      self.controller = MessageController.new(message, self) do
+        @visual.active_panel = last_panel
+        self.controller = nil
+      end
       return @controller
     end
     
@@ -82,13 +94,19 @@ module Visual
   end
 
   class MessageController
-    def initialize(message, minibuffer)
+    def initialize(message, minibuffer, &close_proc)
       @message = message
       @minibuffer = minibuffer
+      @close_proc = close_proc
     end
 
     def content
       @message
+    end
+
+    def content=(msg)
+      @message = msg
+      @minibuffer.refresh
     end
 
     def cursor
@@ -96,7 +114,7 @@ module Visual
     end
     
     def close
-      @minibuffer.controller = nil
+      @close_proc.call
     end
   end
   
